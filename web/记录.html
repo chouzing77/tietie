@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f2e9">
+<title>贴纸日历</title>
+<style>
+@font-face{font-family:"汇文明朝体";src:url("参考字体/Huiwen-mincho.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap}
+:root{--bg:#f6f4ed;--paper:#fffefa;--ink:#332722;--muted:#857f76;--line:#eeeae1;--accent:#745c4e;--soft:#eae6dd;--shadow:0 9px 25px rgba(80,65,48,.07);--display:"汇文明朝体","Noto Serif SC","Songti SC","SimSun",serif;--ui:var(--display)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:radial-gradient(circle at 18% 12%,#d8d1c3 0 .6px,transparent 1px) 0 0/21px 25px,radial-gradient(circle at 81% 69%,#d7d1c5 0 .5px,transparent 1px) 0 0/29px 31px,var(--bg);color:var(--ink);font-family:var(--ui)}
+body{font-size:14px;line-height:1.5}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+#app{max-width:520px;margin:auto;padding:24px 12px 102px;min-height:100vh}
+.top{display:flex;justify-content:center;align-items:flex-start;text-align:center;position:relative;margin:12px 0 23px}
+h1{margin:1px 0 0;font-family:var(--display);font-size:31px;font-weight:400;letter-spacing:.025em;line-height:1.25}
+.round{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-size:19px}
+.top .round{position:absolute;right:0;top:-7px}
+.zones{display:flex;gap:8px;overflow:auto;padding:2px 0 15px;scrollbar-width:none}
+.zones::-webkit-scrollbar{display:none}
+.zone{flex:none;border:1px solid var(--line);border-radius:999px;padding:8px 13px;background:var(--paper);color:var(--muted);white-space:nowrap;font-size:12px}
+.zone.on{background:#3b2b25;color:#fff;border-color:#3b2b25}
+.calendar{background:var(--paper);border:1px solid var(--line);border-radius:27px;padding:16px 11px 13px;box-shadow:var(--shadow);transform-origin:50% 0;animation:calendar-open .58s cubic-bezier(.2,.85,.25,1) both}
+.monthnav{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 16px}
+.monthnav strong{font-family:var(--display);font-size:19px;font-weight:400;letter-spacing:.03em}
+.arrow{border:0;background:transparent;color:var(--ink);font-size:23px;width:42px;height:35px}
+.week,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.week{text-align:center;color:var(--muted);font-family:var(--ui);font-size:10px;letter-spacing:.09em;padding-bottom:9px}
+.day{height:65px;min-width:0;display:flex;flex-direction:column;align-items:center;position:relative;border-radius:12px;padding:3px 1px;cursor:pointer;background:#f1f0e9;margin:2px}
+.day.blank{cursor:default}
+.day.blank{background:transparent}
+.day.on{background:#e8e3d7;outline:1px solid #d8c9bb}
+.day.today .num{background:#292621;color:#fff;border-radius:999px;min-width:19px}
+.num{font-size:11px;line-height:19px;text-align:center;color:#5b5751}
+.day .stacks{position:relative;width:100%;height:37px;display:flex;align-items:center;justify-content:center}
+.mini{width:29px;height:31px;object-fit:contain;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 2px 2px #aaa);transform:rotate(-6deg)}
+.mini.second{position:absolute;left:38%;width:26px;height:28px;transform:rotate(9deg)}
+.calendar .mini,.calendar .emoji{animation:sticker-drop .68s cubic-bezier(.18,.78,.22,1) both;animation-delay:calc(var(--i,0)*22ms + 80ms)}
+.day .emoji{font-size:27px;line-height:34px}
+.day .stacks .emoji{width:29px;text-align:center;flex:none;font-size:24px}
+.day .stacks .emoji.second{position:absolute;left:38%;width:26px;font-size:21px;transform:rotate(9deg)}
+.more{position:absolute;right:-1px;bottom:-4px;font-size:9px;color:var(--accent);background:var(--paper);border-radius:5px;padding:0 2px}
+.day-empty{font-size:10px;color:#d0c8bf;margin-top:7px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:17px;margin-top:14px;box-shadow:var(--shadow)}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.panel-head strong{font-family:var(--display);font-size:16px;font-weight:400}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.day-list{display:flex;gap:10px;overflow:auto;padding:7px 1px 4px}
+.sticker-card{min-width:112px;max-width:112px;background:#f8f4ee;border-radius:16px;padding:9px;text-align:center;cursor:pointer}
+.sticker-card img{width:88px;height:87px;object-fit:contain;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 3px #fff) drop-shadow(0 3px 3px #aaa)}
+.sticker-card .fallback{height:87px;display:grid;place-items:center;font-size:53px}
+.sticker-card .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.primary{border:0;background:#2e2b27;color:#fff;border-radius:999px;padding:13px 18px;min-height:45px;font-weight:600}
+.primary.wide{width:100%}
+.secondary{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:11px 15px;min-height:43px}
+.empty{text-align:center;color:var(--muted);font-size:13px;padding:20px 12px}
+.empty .icon{display:block;font-size:36px;margin-bottom:6px}
+.bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:rgba(255,253,249,.97);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;height:72px;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+.tab{width:19%;border:0;background:none;color:#918a82;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px}
+.tab b{font-weight:400;font-size:20px;line-height:23px}
+.tab.on{color:var(--accent)}
+.plus{width:54px;height:54px;border-radius:50%;border:0;background:#2e2b27;color:#fff;font-size:31px;box-shadow:0 5px 15px #aa9e90;transform:translateY(-12px)}
+.section-title{font-size:22px;margin:1px 0 16px}
+.sticker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sticker-grid .sticker-card{min-width:0;max-width:none}
+.weekly{margin-top:14px}
+.weekly .monthnav strong{font-size:15px;white-space:nowrap}
+.weekly .day{height:78px}
+.weekly .stacks{height:47px}
+.weekly .mini{width:41px;height:41px}
+.weekly .mini,.weekly .emoji{animation:sticker-bloom 1s cubic-bezier(.16,.83,.2,1) both;animation-delay:calc(var(--i,0)*70ms + 90ms)}
+.favorites-page .sticker-card{opacity:0}
+.favorite-day .sticker-card.reveal,.favorite-grid .sticker-card.reveal{animation:sticker-bloom 1s cubic-bezier(.16,.83,.2,1) both;animation-delay:calc(var(--i,0)*75ms + 70ms)}
+.review-cover{background:var(--paper);border:1px solid var(--line);border-radius:27px;padding:22px 18px 26px;box-shadow:var(--shadow);overflow:hidden}
+.review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.review-year{color:#b4aaa0;font-size:17px;letter-spacing:.08em}
+.review-range{color:#e7a828;font-size:30px;line-height:1.2;letter-spacing:.025em;font-weight:600;margin-top:5px}
+.review-nav{display:flex;align-items:center;gap:1px}.review-nav button{font-size:25px}.review-nav button:disabled{opacity:.28;cursor:default}
+.review-counts{margin:28px 0 10px;font-size:16px;color:#8f8479}.review-counts div{margin:7px 0}.review-counts strong{font-size:25px;color:var(--ink);font-weight:600;padding:0 5px}
+.review-collage{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px 3px;align-items:end;margin:19px 0 10px;min-height:170px}
+.review-piece{grid-column:span 3;border:0;background:transparent;min-width:0;padding:2px;display:flex;flex-direction:column;align-items:center;gap:3px;transform:rotate(var(--turn,0deg));animation:sticker-bloom .85s cubic-bezier(.16,.83,.2,1) both;animation-delay:calc(var(--i,0)*55ms)}
+.review-piece:nth-child(4n+2),.review-piece:nth-child(4n+3){grid-column:span 2}.review-piece:nth-child(4n+4){grid-column:span 4}
+.review-piece img{width:100%;height:145px;object-fit:contain}.review-piece:nth-child(4n+2) img,.review-piece:nth-child(4n+3) img{height:110px}
+.review-piece .emoji{font-size:74px;height:120px;display:grid;place-items:center}.review-piece small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--muted)}
+.review-signoff{font-family:var(--display);font-size:24px;color:#a5836c;margin-top:16px}
+.category-card{display:flex;align-items:center;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:17px;padding:13px;margin-bottom:10px;cursor:pointer}
+.category-card .symbol{font-size:28px;width:42px;text-align:center}
+.category-card .grow{flex:1}
+.category-card strong{display:block}
+.category-card .count{font-size:11px;color:var(--muted)}
+.settings-section{font-family:var(--display);font-size:19px;font-weight:400;margin:24px 2px 11px}
+.profile-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:17px;box-shadow:var(--shadow)}
+.profile-avatar{width:56px;height:56px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--soft);font-size:23px;object-fit:cover}
+.profile-card strong{display:block;font-size:18px}.profile-card small{display:block;color:var(--muted);font-size:11px;margin-top:3px;word-break:break-all}
+.account-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.metric-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.metric{background:var(--paper);border:1px solid var(--line);border-radius:17px;padding:15px}
+.metric span{font-size:11px;color:var(--muted)}
+.metric strong{display:block;font-size:25px;margin-top:4px}
+.stats-panel{margin-top:12px}
+.year-panel{min-height:460px}
+.stats-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.stats-head strong{font-family:var(--display);font-size:16px;font-weight:400}
+.stats-head .monthnav{padding:0;min-width:116px}
+.stats-head .monthnav strong{font-size:12px;white-space:nowrap}
+.stats-head .arrow{width:25px;height:28px;font-size:19px}
+.stats-sub{font-size:11px;color:var(--muted)}
+.stats-big{font-size:24px;font-weight:700;line-height:1.1}
+.year-months{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px 5px;margin-top:17px}
+.year-month{min-width:0}
+.year-month-label{display:block;font-size:10px;color:var(--muted);margin:0 0 5px 2px}
+.year-heatmap{display:grid;grid-template-columns:repeat(7,10px);grid-auto-rows:10px;gap:2px;width:max-content}
+.year-dot{width:10px;height:10px;border:0;border-radius:2px;padding:0;background:#e9f3ef;cursor:pointer}
+.year-empty{width:10px;height:10px}
+.month-layout{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.month-summary{display:grid;gap:4px;flex:1}
+.month-heatmap{display:grid;grid-template-columns:repeat(7,11px);grid-auto-rows:11px;gap:3px;flex:none}
+.month-dot{width:11px;height:11px;border:0;border-radius:50%;padding:0;background:#e9f3ef;cursor:pointer}
+.month-dot.on{outline:1px solid #286d58;outline-offset:1px}
+.heat-empty{width:11px;height:11px}
+.week-heatmap{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.week-heatmap button{min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:var(--ink);padding:0;cursor:pointer}
+.week-heatmap small{font-size:10px;color:var(--muted)}
+.week-heatmap b{width:100%;max-width:34px;min-height:27px;border-radius:8px;display:grid;place-items:center;background:#e9f3ef;font-size:10px;font-weight:500}
+.week-heatmap button.on b{outline:1px solid #286d58;outline-offset:2px}
+.year-dot[data-level="1"],.month-dot[data-level="1"],.week-heatmap [data-level="1"] b{background:#d4efe4}
+.year-dot[data-level="2"],.month-dot[data-level="2"],.week-heatmap [data-level="2"] b{background:#a9dfc9}
+.year-dot[data-level="3"],.month-dot[data-level="3"],.week-heatmap [data-level="3"] b{background:#74cda9}
+.year-dot[data-level="4"],.month-dot[data-level="4"],.week-heatmap [data-level="4"] b{background:#39a979;color:#fff}
+.overlay{position:fixed;inset:0;background:rgba(34,29,23,.4);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.overlay.on{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:520px;max-height:94vh;border-radius:28px 28px 0 0;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+.sheet-header{padding:18px 18px 10px;display:flex;align-items:center;justify-content:space-between;flex:none}
+.sheet-header strong{font-size:18px}
+.close{border:0;background:var(--paper);border-radius:50%;width:34px;height:34px;font-size:18px}
+.sheet-body{padding:5px 18px 22px;overflow:auto;flex:1}
+.sheet-foot{padding:10px 18px 15px;flex:none;background:var(--bg);border-top:1px solid var(--line)}
+label{display:block;font-size:12px;color:var(--muted);margin:16px 0 6px}
+.input{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--paper);outline:none;color:var(--ink)}
+.input:focus{border-color:var(--accent)}
+textarea.input{min-height:84px;resize:vertical}
+.preview{display:grid;place-items:center;min-height:210px;background:#eee8dc;border-radius:18px;overflow:hidden;margin:8px 0 15px}
+.preview img{max-width:90%;max-height:205px;object-fit:contain;filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 3px #fff) drop-shadow(0 4px 4px #8b8176)}
+.preview.source img{max-height:260px;filter:none}
+.lasso-canvas{display:block;width:100%;height:auto;margin:10px auto;border-radius:16px;touch-action:none;background:#eee8dc}
+.lasso-tools{display:flex;align-items:center;gap:8px;margin:8px 0}.lasso-tools button{min-width:42px}.lasso-tools .lasso-space{flex:1}.lasso-result{width:min(100%,300px);height:240px;object-fit:contain;display:block;margin:16px auto;background:#eee8dc;border-radius:18px}.lasso-actions{display:flex;gap:10px}.lasso-actions button{flex:1;min-width:0;padding:10px 8px;font-size:13px;line-height:1.3;white-space:normal}.lasso-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center}.lasso-compare .lasso-result{width:100%;height:180px;margin:12px auto 5px}.lasso-compare span{font-size:12px;color:var(--muted)}
+.detail-actions{display:flex;gap:9px;margin:12px 0 18px}.detail-actions button{flex:1}
+.border-line,.color-choices,.border-modes{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.border-line input[type=range]{flex:1;min-width:140px;accent-color:var(--accent)}
+.border-line output{min-width:32px;text-align:right;color:var(--accent)}
+.border-mode{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:7px 15px;color:var(--muted)}
+.border-mode.on{border-color:var(--accent);color:var(--accent);background:var(--soft)}
+.color-choice{width:31px;height:31px;border:2px solid #ddd7cb;border-radius:50%;background:var(--swatch);padding:0}
+.color-choice.on{outline:2px solid var(--accent);outline-offset:2px}
+.outline-color-custom{width:35px;height:35px;padding:2px;border:1px solid var(--line);border-radius:50%;background:var(--paper)}
+.tag-row{display:flex;gap:7px;align-items:center}.tag-row .input{min-width:0;flex:1}.tag-row .secondary{flex:none}
+.tag-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.tag-pill{border:1px solid var(--line);border-radius:999px;background:var(--paper);padding:5px 9px;color:var(--ink)}
+.note-head{margin-top:16px}.note-head label{margin:0}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choice{border:1px solid var(--line);background:var(--paper);padding:7px 11px;border-radius:999px;color:var(--muted)}
+.emoji-choice{width:42px;height:42px;display:grid;place-items:center;padding:0;font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;font-size:20px;line-height:1}
+.private-toggle{display:flex;align-items:center;gap:10px;margin-top:19px;color:var(--ink)}
+.private-toggle input{width:18px;height:18px;accent-color:var(--accent)}
+.choice.on{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+.ai-status{text-align:center;padding:18px;color:var(--muted)}
+.spinner{width:29px;height:29px;border:3px solid #d7cfc4;border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes calendar-open{0%{opacity:.2;transform:scaleY(.75) translateY(-15px)}72%{opacity:1;transform:scaleY(1.025) translateY(3px)}100%{opacity:1;transform:scaleY(1) translateY(0)}}
+@keyframes sticker-drop{0%{opacity:0;translate:0 -55px;scale:.76;rotate:-13deg}60%{opacity:1;translate:0 7px;scale:1.1;rotate:5deg}77%{translate:0 -4px;scale:.97;rotate:-3deg}89%{translate:1px 2px;scale:1.02;rotate:2deg}100%{opacity:1;translate:0 0;scale:1;rotate:0}}
+@keyframes sticker-bloom{0%{opacity:0;translate:0 28px;scale:.12;rotate:-18deg}46%{opacity:1;translate:0 -11px;scale:1.24;rotate:8deg}65%{translate:-4px 5px;scale:.93;rotate:-7deg}80%{translate:3px -3px;scale:1.08;rotate:5deg}90%{translate:-2px 1px;scale:.98;rotate:-3deg}100%{opacity:1;translate:0 0;scale:1;rotate:0}}
+@media(prefers-reduced-motion:reduce){.calendar,.calendar .mini,.calendar .emoji,.weekly .mini,.weekly .emoji,.favorites-page .sticker-card,.review-piece{animation:none!important;opacity:1!important}}
+.toast{position:fixed;bottom:91px;left:50%;transform:translateX(-50%);background:#302c28;color:#fff;padding:9px 15px;border-radius:999px;z-index:80;display:none;white-space:nowrap;font-size:12px;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+.toast.on{display:block}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+@media(max-width:350px){.day{height:59px}.mini{width:28px;height:28px}.calendar{padding-left:7px;padding-right:7px}}
+#app.login-shell{max-width:none;padding:0}.login-page{min-height:100vh;max-width:520px;margin:auto;padding:68px 24px 42px;display:flex;flex-direction:column;justify-content:center;gap:28px}.login-mark{text-align:center;font-size:39px;font-family:var(--display);letter-spacing:.1em}.login-card{background:var(--paper);border:1px solid var(--line);border-radius:26px;padding:25px 20px 21px;box-shadow:var(--shadow)}.login-card h1{font-size:25px;text-align:left;margin-bottom:22px}.login-card label{margin-top:14px}.login-card .input{font-size:16px;letter-spacing:.05em}.login-help{font-size:12px;color:var(--muted);line-height:1.7;margin:14px 0 0}.login-alt{display:block;margin:12px auto 0;border:0;background:transparent;color:var(--accent);font-size:12px;text-decoration:underline}.login-footer{text-align:center;color:var(--muted);font-size:11px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="overlay" class="overlay"><div id="sheet" class="sheet"></div></div>
+<div id="toast" class="toast"></div>
+<input class="sr" id="camera" type="file" accept="image/*" capture="environment">
+<input class="sr" id="gallery" type="file" accept="image/*">
+<input class="sr" id="import" type="file" accept=".json,application/json">
+<input class="sr" id="accountFile" type="file" accept=".json,application/json">
+
+<input class="sr" id="avatarFile" type="file" accept="image/*">
+<script>
+'use strict';
+var BASE_KEY='sticker_calendar_v1',KEY=BASE_KEY,IMAGE_DB_NAME='sticker_calendar_images_v1', S=null, TAB='calendar', ZONE='all', VIEW=new Date(), PICKED=new Date(), FAV_WEEK=new Date(), FAV_PICKED=new Date(), REVIEW_SAT=null, DRAFT=null, FAV_OBSERVER=null, UNLOCKED=new Set(), UNLOCK_ACTION=null, UNLOCK_FAILURES=0, UNLOCK_RETRY_AT=0;
+var AI_LOADING=null, SEG=null, CLASSIFIER=null, LABELS=null, AI_ERROR='', IMAGE_DB=null, IMAGE_CACHE={};
+var ADMIN_PUBLIC_JWK=null,ADMIN_KEY=null,AUTHENTICATED=!window.AndroidApp,ROLE=window.AndroidApp?'guest':'local',ACCOUNT_EMAIL='',AUTH_MODE='invite',BOOT_READY=false,PROFILE_DRAFT=null,LOGIN_FAILURES=0,LOGIN_RETRY_AT=0;
+var INVITE_CONFIG={"adminHash":"edfcaac579024f574adbcaa3c13e4fd2b7f1797826afe679f2144af2cb5c062d","userHashes":["558cf81bde85f8ec4400eac223eb1747b742ae83610083017868b24d7136ddb6"]};
+function id(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function pad(n){return n<10?'0'+n:''+n}
+function dateKey(t){var d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function todayKey(){return dateKey(Date.now())}
+function localInput(t){var d=new Date(t);return dateKey(t)+'T'+pad(d.getHours())+':'+pad(d.getMinutes())}
+function defaultState(){return {categoryNamesVersion:2,categories:[{id:'food',name:'美食',icon:'🍰'},{id:'life',name:'日常',icon:'🌿'},{id:'study',name:'学习',icon:'📚'}],records:[],profile:{name:'',avatar:''},issued:[]}}
+var CATEGORY_EMOJIS=['🍰','🍵','☕','🍜','🍣','🍕','🍎','🍓','🍉','🍞','🍪','🍫','🌿','🌷','🌸','🌻','🍀','🌈','☀️','🌙','⭐','📚','📖','✏️','📝','🎓','💡','💻','❤️','💗','💌','🎁','🎬','🎵','🎨','🎮','📷','🏠','🚲','✈️','🚗','🏃','⚽','🐱','🐶','🐾','🍊','🎂','🎤'];
+function normalize(){
+  if(!S||!Array.isArray(S.categories)||!Array.isArray(S.records)) S=defaultState();
+  if(!S.categories.length) S.categories=defaultState().categories;
+  if(!S.profile||typeof S.profile!=='object')S.profile={name:'',avatar:''};
+  if(!Array.isArray(S.issued))S.issued=[];
+  if(S.categoryNamesVersion!==2){S.categories.forEach(function(c){var old={food:'美食区',life:'日常区',study:'学习区'},fresh={food:'美食',life:'日常',study:'学习'};if(c.name===old[c.id])c.name=fresh[c.id]});S.categoryNamesVersion=2}
+  S.records.forEach(function(r){if(r.favorite==null)r.favorite=false;if(!r.name)r.name='一张贴纸';if(!r.tags)r.tags=[]});
+}
+function load(){
+  if(ROLE==='admin'&&!localStorage.getItem(KEY)&&localStorage.getItem(BASE_KEY))localStorage.setItem(KEY,localStorage.getItem(BASE_KEY));
+  try{var raw=localStorage.getItem(KEY);if(raw){S=JSON.parse(raw);var oldVersion=S.categoryNamesVersion;normalize();if(oldVersion!==S.categoryNamesVersion)save();return}}catch(e){}
+  var old=null;try{old=(ROLE==='admin'||ROLE==='local')?JSON.parse(localStorage.getItem('rec_v2')||localStorage.getItem('rec_v1')||'null'):null}catch(e){}
+  var oldLive=old&&Array.isArray(old.records)?old.records.filter(function(r){return !r.demo}):[];
+  if(old&&Array.isArray(old.types)&&oldLive.length){
+    S={categories:old.types.map(function(t){return {id:t.id,name:/区$/.test(t.name)?t.name:t.name+'区',icon:t.icon||'📌'}}),records:oldLive.map(function(r){
+      var t=old.types.filter(function(x){return x.id===r.typeId})[0],sub=t&&t.subtypes&&t.subtypes.filter(function(x){return x.id===r.subtypeId})[0];
+      return {id:r.id,categoryId:r.typeId,name:sub?sub.name:(r.note||'一张贴纸').slice(0,18),description:'',note:r.note||'',tags:[],occurredAt:r.occurredAt||Date.now(),sticker:r.photo||'',favorite:!!r.favorite};
+    })};
+  }else S=defaultState();
+  normalize();save();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));scheduleWidgetSync();return true}catch(e){toast('本机存储已满，请先导出备份');return false}}
+var WIDGET_SYNC_VERSION=0,WIDGET_SYNC_TIMER=null,WIDGET_PRIVATE_SIGNATURE='';
+function widgetDays(){var days={};S.records.filter(function(r){return !cat(r.categoryId).private}).sort(function(a,b){return b.occurredAt-a.occurredAt}).forEach(function(r){var key=dateKey(r.occurredAt);if(!days[key])days[key]={count:0,records:[]};days[key].count++;if(days[key].records.length<2)days[key].records.push(r)});return days}
+function scheduleWidgetSync(){if(!window.AndroidApp||!AndroidApp.syncWidgets)return;var signature=S.categories.filter(function(c){return c.private}).map(function(c){return c.id}).sort().join('|');if(signature!==WIDGET_PRIVATE_SIGNATURE){AndroidApp.syncWidgets('{}');WIDGET_PRIVATE_SIGNATURE=signature}WIDGET_SYNC_VERSION++;clearTimeout(WIDGET_SYNC_TIMER);WIDGET_SYNC_TIMER=setTimeout(function(){syncWidgetSnapshot().catch(function(){})},200)}
+function widgetThumbnail(r){return new Promise(function(resolve){var canvas=document.createElement('canvas');canvas.width=96;canvas.height=96;var ctx=canvas.getContext('2d'),data=styledData(r)||stickerData(r);if(!data){ctx.font='56px sans-serif';ctx.textAlign='center';ctx.fillText(cat(r.categoryId).icon,48,68);resolve(canvas.toDataURL('image/png'));return}var img=new Image(),done=false,timer=setTimeout(function(){finish('')},3000);function finish(value){if(done)return;done=true;clearTimeout(timer);resolve(value)}img.onload=function(){try{var scale=Math.min(80/img.width,80/img.height);ctx.drawImage(img,(96-img.width*scale)/2,(96-img.height*scale)/2,img.width*scale,img.height*scale);finish(canvas.toDataURL('image/png'))}catch(e){finish('')}};img.onerror=function(){finish('')};img.src=data})}
+async function syncWidgetSnapshot(){if(!window.AndroidApp||!AndroidApp.syncWidgets)return false;var version=WIDGET_SYNC_VERSION,days=widgetDays(),snapshot={};for(var key of Object.keys(days)){var item=days[key],images=[];for(var r of item.records){var image=await widgetThumbnail(r);if(version!==WIDGET_SYNC_VERSION)return false;if(image)images.push(image)}snapshot[key]={count:item.count,images:images}}if(version!==WIDGET_SYNC_VERSION)return false;return AndroidApp.syncWidgets(JSON.stringify(snapshot))}
+function openWidgets(){var today=recordsFor('all').filter(function(r){return !cat(r.categoryId).private&&dateKey(r.occurredAt)===todayKey()}),native=window.AndroidApp&&AndroidApp.addWidget;openSheet(header('添加组件')+'<div class="sheet-body">'+(native?'':'<p class="muted small">手机桌面组件需在安卓应用中添加。安装新版 APK 后，点击回顾页右上角的圆形组件图标；也可长按手机桌面空白处，在组件列表中选择「贴贴」。</p>')+'<div class="panel"><div class="panel-head"><strong>今日</strong></div>'+(today.length?'<div class="day-list">'+today.slice(0,2).map(stickerCard).join('')+'</div>':'<div class="empty">暂无贴纸</div>')+'<button id="widgetAdd-daily" class="primary wide" onclick="requestWidget(\'daily\')">添加今日组件</button></div><div class="panel"><div class="panel-head"><strong>月历</strong></div><div class="small muted" style="margin-bottom:14px">'+new Date().getFullYear()+'年'+(new Date().getMonth()+1)+'月</div><button id="widgetAdd-monthly" class="primary wide" onclick="requestWidget(\'monthly\')">添加月历组件</button></div><p id="widgetAddStatus" class="small muted" role="status" aria-live="polite"></p><button class="secondary wide" onclick="widgetHelp()">从桌面添加</button></div>')}
+function widgetAddStatus(state,message){var e=document.getElementById('widgetAddStatus');if(e){e.textContent=message;e.setAttribute('role','status')}if(state!=='pending'){['daily','monthly'].forEach(function(type){var button=document.getElementById('widgetAdd-'+type);if(button)button.disabled=false})}}
+function requestWidget(type){if(!window.AndroidApp||!AndroidApp.addWidget){toast('请在安卓应用中添加桌面组件');return}try{widgetAddStatus('pending','正在请求桌面添加，请确认系统弹窗。');['daily','monthly'].forEach(function(kind){var button=document.getElementById('widgetAdd-'+kind);if(button)button.disabled=true});AndroidApp.addWidget(type);scheduleWidgetSync()}catch(e){widgetAddStatus('failed','添加未完成，请点「从桌面添加」。');toast('组件添加失败，请重试')}}
+function widgetHelp(){if(window.AndroidApp&&AndroidApp.widgetHelp)AndroidApp.widgetHelp();else toast('请在手机桌面长按空白处，找到「贴贴」组件')}
+function openImageDB(){return new Promise(function(ok,bad){if(!window.indexedDB){bad(new Error('浏览器不支持图片存储'));return}var r=indexedDB.open(IMAGE_DB_NAME,2);r.onupgradeneeded=function(){if(!r.result.objectStoreNames.contains('images'))r.result.createObjectStore('images');if(!r.result.objectStoreNames.contains('keys'))r.result.createObjectStore('keys')};r.onsuccess=function(){ok(r.result)};r.onerror=function(){bad(r.error)}})}
+function imageWrite(rid,data){return new Promise(function(ok,bad){if(!IMAGE_DB){ok();return}var tx=IMAGE_DB.transaction('images','readwrite');tx.objectStore('images').put(data,rid);tx.oncomplete=ok;tx.onerror=function(){bad(tx.error)}})}
+function imageRead(rid){return new Promise(function(ok,bad){if(!IMAGE_DB){ok(null);return}var tx=IMAGE_DB.transaction('images','readonly'),r=tx.objectStore('images').get(rid);r.onsuccess=function(){ok(r.result||null)};r.onerror=function(){bad(r.error)}})}
+function imageRemove(rid){if(!IMAGE_DB)return;var tx=IMAGE_DB.transaction('images','readwrite');tx.objectStore('images').delete(rid)}
+async function loadImages(){
+  try{IMAGE_DB=await openImageDB()}catch(e){IMAGE_DB=null;return}
+  var changed=false;
+  for(var i=0;i<S.records.length;i++){
+    var r=S.records[i];
+    if(r.sticker){await imageWrite(r.id,r.sticker);IMAGE_CACHE[r.id]=r.sticker;r.sticker='';r.hasSticker=true;changed=true}
+    else if(r.hasSticker)IMAGE_CACHE[r.id]=await imageRead(r.id)||'';
+    if(r.styledSticker){await imageWrite('styled:'+r.id,r.styledSticker);IMAGE_CACHE['styled:'+r.id]=r.styledSticker;r.styledSticker='';r.hasStyled=true;changed=true}
+    else if(r.hasStyled)IMAGE_CACHE['styled:'+r.id]=await imageRead('styled:'+r.id)||'';
+  }
+  if(changed)save();
+}
+function stickerData(r){return r.sticker||IMAGE_CACHE[r.id]||''}
+function styledData(r){return Object.prototype.hasOwnProperty.call(r,'displaySticker')?r.displaySticker||'':r.styledSticker||IMAGE_CACHE['styled:'+r.id]||''}
+function borderWidthOf(r){if(Number.isFinite(r.borderWidth))return Math.max(0,Math.min(20,Math.round(r.borderWidth)));return r.outlineStyle==='none'?0:r.outlineStyle==='thin'?4:r.outlineStyle==='bold'?14:8}
+function borderModeOf(r){if(r.borderMode==='gold')return'glow';return ['dashed','dotted','glow'].indexOf(r.borderMode)>=0?r.borderMode:'solid'}
+function borderColorOf(r){var value=r.borderColor||r.outlineColor;if(r.borderMode==='gold'&&(!value||value.toLowerCase()==='#ffffff'))return'#dfac45';return /^#[0-9a-fA-F]{6}$/.test(value||'')?value:'#ffffff'}
+function stickerFilter(r,styled){if(styled)return 'drop-shadow(0 3px 3px #9b9188)';var n=Math.max(0,Math.round(borderWidthOf(r)/4)),color=borderColorOf(r);if(!n)return 'none';return 'drop-shadow('+n+'px 0 0 '+color+') drop-shadow(-'+n+'px 0 0 '+color+') drop-shadow(0 '+n+'px 0 '+color+') drop-shadow(0 -'+n+'px 0 '+color+') drop-shadow(0 3px 3px #9b9188)'}
+function stickerStyle(r,styled){return ' style="filter:'+stickerFilter(r,styled)+'"'}
+function tagText(tag){return typeof tag==='string'?tag:tag&&typeof tag.text==='string'?tag.text:''}
+function cat(cid){return S.categories.filter(function(c){return c.id===cid})[0]||S.categories[0]}
+function isLocked(c){return !!(c&&c.private&&!UNLOCKED.has(c.id))}
+function recordsFor(cid){return S.records.filter(function(r){return (cid==='all'||r.categoryId===cid)&&!isLocked(cat(r.categoryId))}).sort(function(a,b){return b.occurredAt-a.occurredAt})}
+function zoneName(){return ZONE==='all'?'全区':cat(ZONE).name}
+function zoneChips(){return '<button class="zone'+(ZONE==='all'?' on':'')+'" onclick="chooseZone(\'all\')">✦ 全区</button>'+S.categories.map(function(c){return '<button class="zone'+(c.id===ZONE?' on':'')+'" onclick="chooseZone(\''+c.id+'\')">'+(isLocked(c)?'🔒':c.icon)+' '+esc(c.name)+'</button>'}).join('')}
+function pinHex(bytes){return Array.from(bytes).map(function(x){return x.toString(16).padStart(2,'0')}).join('')}
+async function pinDigest(pin,salt){var bytes=new TextEncoder().encode(pin),key=await crypto.subtle.importKey('raw',bytes,'PBKDF2',false,['deriveBits']),saltBytes=new Uint8Array(salt.match(/../g).map(function(x){return parseInt(x,16)})),bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:saltBytes,iterations:120000,hash:'SHA-256'},key,256);return pinHex(new Uint8Array(bits))}
+function requestUnlock(cid,action){var c=cat(cid);if(!isLocked(c)){action();return}UNLOCK_ACTION=action;openSheet(header('解锁「'+esc(c.name)+'」')+'<div class="sheet-body"><label for="unlockPin">分区密码</label><input id="unlockPin" class="input" type="password" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="输入密码" onkeydown="if(event.key===\'Enter\')unlockCategory(\''+c.id+'\')"><div class="small muted" style="margin-top:12px">锁定时，贴纸不会出现在全区、收藏和统计中。</div></div><div class="sheet-foot"><button class="primary wide" onclick="unlockCategory(\''+c.id+'\')">解锁</button></div>')}
+async function unlockCategory(cid){var c=cat(cid),pin=document.getElementById('unlockPin').value;if(Date.now()<UNLOCK_RETRY_AT){toast('请稍后再试');return}if(!c.pinSalt||!c.pinHash||!crypto.subtle){toast('此分区无法验证密码');return}var hash=await pinDigest(pin,c.pinSalt);if(hash!==c.pinHash){UNLOCK_FAILURES++;if(UNLOCK_FAILURES>=5){UNLOCK_RETRY_AT=Date.now()+30000;UNLOCK_FAILURES=0}toast('密码不正确');return}UNLOCK_FAILURES=0;UNLOCKED.add(c.id);var action=UNLOCK_ACTION;UNLOCK_ACTION=null;closeSheet();if(action)action();else render()}
+function lockPrivateZones(){if(!S||!S.categories.some(function(c){return c.private}))return;UNLOCKED=new Set();UNLOCK_ACTION=null;if(ZONE!=='all'&&isLocked(cat(ZONE)))ZONE='all';DRAFT=null;closeSheet();render()}
+function haptic(){if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;if(window.AndroidApp&&AndroidApp.vibrate)AndroidApp.vibrate();else if(navigator.vibrate)navigator.vibrate([9,24,7])}
+function sticker(r,cls){var styled=styledData(r),data=styled||stickerData(r);return data?'<img class="'+cls+'" src="'+data+'" alt="'+esc(r.name)+'"'+stickerStyle(r,!!styled)+'>':'<span class="emoji">'+cat(r.categoryId).icon+'</span>'}
+function nav(){var items=[['calendar','▦','日历'],['favorites','☆','收藏'],['add','+','制作'],['stats','▥','统计'],['review','◫','回顾']];return '<nav class="bottom">'+items.map(function(x){return x[0]==='add'?'<button class="plus" onclick="pickSource()" aria-label="制作贴纸">+</button>':'<button class="tab'+(TAB===x[0]?' on':'')+'" onclick="go(\''+x[0]+'\')"><b>'+x[1]+'</b>'+x[2]+'</button>'}).join('')+'</nav>'}
+function go(t){if(t==='calendar'||t==='favorites'||t==='review')haptic();if(t==='review')REVIEW_SAT=latestReviewSaturday(new Date());TAB=t;render();window.scrollTo(0,0)}
+function revealFavorites(root){var cards=root.querySelectorAll('.sticker-card');if(!window.IntersectionObserver||window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){cards.forEach(function(el){el.classList.add('reveal')});return}var ob=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('reveal');ob.unobserve(e.target)}})},{threshold:.12});FAV_OBSERVER=ob;cards.forEach(function(el){ob.observe(el)})}
+function render(){if(!AUTHENTICATED){showAuth();return}if(FAV_OBSERVER){FAV_OBSERVER.disconnect();FAV_OBSERVER=null}var a=document.getElementById('app');a.className=TAB==='favorites'?'favorites-page':'';a.innerHTML=(TAB==='calendar'?calendarPage():TAB==='favorites'?favoritesPage():TAB==='stats'?statsPage():TAB==='review'?reviewPage():categoriesPage())+nav();if(TAB==='favorites')revealFavorites(a)}
+function calendarPage(){
+  var y=VIEW.getFullYear(),m=VIEW.getMonth(),first=(new Date(y,m,1).getDay()+6)%7,last=new Date(y,m+1,0).getDate(),all=recordsFor(ZONE);
+  var chips=zoneChips();
+  var cells='';for(var i=0;i<first;i++)cells+='<div class="day blank"></div>';
+  for(var d=1;d<=last;d++){
+    var key=y+'-'+pad(m+1)+'-'+pad(d),rs=all.filter(function(r){return dateKey(r.occurredAt)===key}),on=dateKey(PICKED.getTime())===key,td=todayKey()===key;
+    var minis=rs.slice(0,2).map(function(r,k){var styled=styledData(r),data=styled||stickerData(r),style=' style="--i:'+(d+k)+';filter:'+stickerFilter(r,!!styled)+'"';return data?'<img class="mini'+(k?' second':'')+'"'+style+' src="'+data+'" alt="">':'<span class="emoji'+(k?' second':'')+'"'+style+'>'+cat(r.categoryId).icon+'</span>'}).join('');
+    cells+='<div class="day'+(on?' on':'')+(td?' today':'')+'" onclick="pickDay('+y+','+m+','+d+')"><span class="num">'+d+'</span><div class="stacks">'+(minis||'<span class="day-empty">·</span>')+(rs.length>2?'<span class="more">+'+(rs.length-2)+'</span>':'')+'</div></div>';
+  }
+  var selected=all.filter(function(r){return dateKey(r.occurredAt)===dateKey(PICKED.getTime())}),dname=(PICKED.getMonth()+1)+'月'+PICKED.getDate()+'日';
+  return '<div class="top"><h1>贴贴</h1><button class="round" onclick="go(\'categories\')" aria-label="管理分区">☷</button></div>'
+    +'<div class="zones">'+chips+'<button class="zone" onclick="editCategory()">＋ 新分区</button></div>'
+    +'<div class="calendar"><div class="monthnav"><button class="arrow" onclick="shift(-1)">‹</button><strong>'+y+'年'+(m+1)+'月</strong><button class="arrow" onclick="shift(1)">›</button></div>'
+    +'<div class="week">'+['一','二','三','四','五','六','日'].map(function(x){return '<span>'+x+'</span>'}).join('')+'</div><div class="days">'+cells+'</div></div>'
+    +'<div class="panel"><div class="panel-head"><strong>'+dname+'</strong><span class="muted small">'+selected.length+' 张</span></div>'
+    +(selected.length?'<div class="day-list">'+selected.map(stickerCard).join('')+'</div>':'<div class="empty">暂无贴纸</div>')
+    +'<button class="primary wide" onclick="pickSource()">制作</button></div>';
+}
+function stickerCard(r,i){var styled=styledData(r),data=styled||stickerData(r),delay=typeof i==='number'?' style="--i:'+Math.min(i,6)+'"':'';return '<div class="sticker-card"'+delay+' onclick="openRecord(\''+r.id+'\')">'+(data?'<img src="'+data+'" alt=""'+stickerStyle(r,!!styled)+'>':'<div class="fallback">'+cat(r.categoryId).icon+'</div>')+'<div class="name">'+esc(r.name)+'</div></div>'}
+function chooseZone(x){if(x!=='all'&&isLocked(cat(x))){requestUnlock(x,function(){ZONE=x;haptic();render()});return}ZONE=x;haptic();render()}
+function shift(n){VIEW=new Date(VIEW.getFullYear(),VIEW.getMonth()+n,1);PICKED=new Date(VIEW.getFullYear(),VIEW.getMonth(),1);haptic();render()}
+function pickDay(y,m,d){PICKED=new Date(y,m,d);render()}
+function weekStart(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x}
+function favoriteWeek(n){FAV_WEEK=new Date(FAV_WEEK.getFullYear(),FAV_WEEK.getMonth(),FAV_WEEK.getDate()+n*7);FAV_PICKED=weekStart(FAV_WEEK);haptic();render()}
+function pickFavoriteDay(y,m,d){FAV_PICKED=new Date(y,m,d);haptic();render()}
+function favoritesPage(){
+  var rs=recordsFor('all').filter(function(r){return r.favorite}),start=weekStart(FAV_WEEK),end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+6),cells='',chosen=dateKey(FAV_PICKED.getTime());
+  for(var i=0;i<7;i++){
+    var day=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),key=dateKey(day.getTime()),items=rs.filter(function(r){return dateKey(r.occurredAt)===key}),mini=items[0]?sticker(items[0],'mini'):'';
+    cells+='<div class="day'+(key===chosen?' on':'')+'" onclick="pickFavoriteDay('+day.getFullYear()+','+day.getMonth()+','+day.getDate()+')"><span class="num">'+day.getDate()+'</span><div class="stacks" style="--i:'+i+'">'+(mini||'<span class="day-empty">·</span>')+(items.length>1?'<span class="more">+'+(items.length-1)+'</span>':'')+'</div></div>';
+  }
+  var picked=rs.filter(function(r){return dateKey(r.occurredAt)===chosen});
+  return '<div class="top"><h1>收藏</h1></div>'
+    +'<div class="calendar weekly"><div class="monthnav"><button class="arrow" onclick="favoriteWeek(-1)" aria-label="上一周">‹</button><strong>'+(start.getMonth()+1)+'月'+start.getDate()+'日—'+(start.getMonth()===end.getMonth()?'':(end.getMonth()+1)+'月')+end.getDate()+'日</strong><button class="arrow" onclick="favoriteWeek(1)" aria-label="下一周">›</button></div><div class="week">'+['一','二','三','四','五','六','日'].map(function(x){return '<span>'+x+'</span>'}).join('')+'</div><div class="days">'+cells+'</div></div>'
+    +'<div class="panel"><div class="panel-head"><strong>'+(FAV_PICKED.getMonth()+1)+'月'+FAV_PICKED.getDate()+'日</strong><span class="muted small">'+picked.length+' 张</span></div>'+(picked.length?'<div class="day-list favorite-day">'+picked.map(stickerCard).join('')+'</div>':'<div class="empty">暂无收藏</div>')+'</div>'
+    +'<div class="panel"><div class="panel-head"><strong>全部收藏</strong><span class="muted small">'+rs.length+' 张</span></div>'+(rs.length?'<div class="sticker-grid favorite-grid">'+rs.map(stickerCard).join('')+'</div>':'<div class="empty">暂无收藏</div>')+'</div>';
+}
+function shiftYear(n){VIEW=new Date(VIEW.getFullYear()+n,VIEW.getMonth(),1);PICKED=new Date(VIEW.getFullYear(),VIEW.getMonth(),1);haptic();render()}
+function shiftStatsWeek(n){PICKED=new Date(PICKED.getFullYear(),PICKED.getMonth(),PICKED.getDate()+n*7);VIEW=new Date(PICKED.getFullYear(),PICKED.getMonth(),1);haptic();render()}
+function pickStatsDay(y,m,d){PICKED=new Date(y,m,d);VIEW=new Date(y,m,1);haptic();render()}
+function statsPage(){
+  var y=VIEW.getFullYear(),m=VIEW.getMonth(),all=recordsFor(ZONE),year=all.filter(function(r){return new Date(r.occurredAt).getFullYear()===y}),month=year.filter(function(r){return new Date(r.occurredAt).getMonth()===m}),counts={};
+  all.forEach(function(r){var key=dateKey(r.occurredAt);counts[key]=(counts[key]||0)+1});
+  var yearMonths='';
+  for(var ym=0;ym<12;ym++){
+    var yearCells='',yFirst=(new Date(y,ym,1).getDay()+6)%7,yLast=new Date(y,ym+1,0).getDate();
+    for(var blank=0;blank<yFirst;blank++)yearCells+='<span class="year-empty"></span>';
+    for(var yd=1;yd<=yLast;yd++){
+      var yk=y+'-'+pad(ym+1)+'-'+pad(yd),yn=counts[yk]||0;
+      yearCells+='<button type="button" class="year-dot" data-count="'+yn+'" data-level="'+Math.min(4,yn)+'" aria-label="'+(ym+1)+'月'+yd+'日，'+yn+'张贴纸" onclick="pickStatsDay('+y+','+ym+','+yd+')"></button>';
+    }
+    yearMonths+='<div class="year-month"><span class="year-month-label">'+(ym+1)+'月</span><div class="year-heatmap">'+yearCells+'</div></div>';
+  }
+  var first=(new Date(y,m,1).getDay()+6)%7,last=new Date(y,m+1,0).getDate(),monthDots='';
+  for(var i=0;i<first;i++)monthDots+='<span class="heat-empty"></span>';
+  for(var d=1;d<=last;d++){
+    var mk=y+'-'+pad(m+1)+'-'+pad(d),mn=counts[mk]||0;
+    monthDots+='<button type="button" class="month-dot'+(dateKey(PICKED.getTime())===mk?' on':'')+'" data-count="'+mn+'" data-level="'+Math.min(4,mn)+'" aria-label="'+(m+1)+'月'+d+'日，'+mn+'张贴纸" onclick="pickStatsDay('+y+','+m+','+d+')"></button>';
+  }
+  var start=weekStart(PICKED),end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+6),weekDots='',weekTotal=0;
+  for(i=0;i<7;i++){
+    var wd=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),wk=dateKey(wd.getTime()),wn=counts[wk]||0;weekTotal+=wn;
+    weekDots+='<button type="button" class="'+(wk===dateKey(PICKED.getTime())?'on':'')+'" data-count="'+wn+'" data-level="'+Math.min(4,wn)+'" aria-label="'+(wd.getMonth()+1)+'月'+wd.getDate()+'日，'+wn+'张贴纸" onclick="pickStatsDay('+wd.getFullYear()+','+wd.getMonth()+','+wd.getDate()+')"><small>'+['一','二','三','四','五','六','日'][i]+' · '+wd.getDate()+'</small><b>'+wn+'</b></button>';
+  }
+  var yearActive=Object.keys(counts).filter(function(k){return k.slice(0,4)===''+y}).length,monthActive=Object.keys(counts).filter(function(k){return k.slice(0,7)===y+'-'+pad(m+1)}).length;
+  return '<div class="top"><h1>统计</h1></div><div class="zones">'+zoneChips()+'</div>'
+    +'<div class="panel stats-panel year-panel"><div class="stats-head"><strong>年</strong><div class="monthnav"><button class="arrow" onclick="shiftYear(-1)" aria-label="上一年">‹</button><strong>'+y+'年</strong><button class="arrow" onclick="shiftYear(1)" aria-label="下一年">›</button></div></div><div class="stats-big">'+yearActive+' <span class="stats-sub">天记录 · '+year.length+' 张贴纸</span></div><div class="year-months">'+yearMonths+'</div></div>'
+    +'<div class="panel stats-panel"><div class="stats-head"><strong>月</strong><div class="monthnav"><button class="arrow" onclick="shift(-1)" aria-label="上个月">‹</button><strong>'+y+'年'+(m+1)+'月</strong><button class="arrow" onclick="shift(1)" aria-label="下个月">›</button></div></div><div class="month-layout"><div class="month-summary"><strong>'+monthActive+' 天 · '+month.length+' 张</strong><span class="stats-sub">'+(PICKED.getMonth()+1)+'月'+PICKED.getDate()+'日 · '+(counts[dateKey(PICKED.getTime())]||0)+' 张</span></div><div class="month-heatmap">'+monthDots+'</div></div></div>'
+    +'<div class="panel stats-panel"><div class="stats-head"><strong>周</strong><div class="monthnav"><button class="arrow" onclick="shiftStatsWeek(-1)" aria-label="上一周">‹</button><strong>'+(start.getMonth()+1)+'月'+start.getDate()+'日—'+(start.getMonth()===end.getMonth()?'':(end.getMonth()+1)+'月')+end.getDate()+'日</strong><button class="arrow" onclick="shiftStatsWeek(1)" aria-label="下一周">›</button></div></div><div class="week-heatmap">'+weekDots+'</div><div class="stats-sub" style="margin-top:10px">本周 '+weekTotal+' 张</div></div>';
+}
+function latestReviewSaturday(now){var d=new Date(now.getFullYear(),now.getMonth(),now.getDate());d.setDate(d.getDate()-(d.getDay()+1)%7);return d}
+function reviewWindow(saturday){var start=new Date(saturday.getFullYear(),saturday.getMonth(),saturday.getDate()-7),end=new Date(saturday.getFullYear(),saturday.getMonth(),saturday.getDate()-1);return {start:start,end:end,until:saturday}}
+function shiftReview(n){var next=new Date(REVIEW_SAT.getFullYear(),REVIEW_SAT.getMonth(),REVIEW_SAT.getDate()+n*7);if(next>latestReviewSaturday(new Date()))return;REVIEW_SAT=next;haptic();render()}
+function reviewPage(){
+  var sat=REVIEW_SAT||latestReviewSaturday(new Date()),range=reviewWindow(sat),items=recordsFor(ZONE).filter(function(r){return r.occurredAt>=range.start.getTime()&&r.occurredAt<range.until.getTime()}),active=new Set(items.map(function(r){return dateKey(r.occurredAt)})).size;
+  var atLatest=dateKey(sat.getTime())===dateKey(latestReviewSaturday(new Date()).getTime());
+  var collage=items.length?items.map(function(r,i){return '<button class="review-piece" style="--i:'+Math.min(i,12)+';--turn:'+([-3,3,-2,2,0][i%5])+'deg" onclick="openRecord(\''+r.id+'\')" aria-label="查看'+esc(r.name)+'">'+sticker(r,'review-image')+'<small>'+esc(r.name)+'</small></button>'}).join(''):'<div class="empty" style="grid-column:1/-1">这七天还没有贴纸</div>';
+  return '<div class="top"><h1>回顾</h1><button class="round" onclick="openWidgets()" aria-label="添加组件" title="添加组件"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button></div>'
+    +'<div class="zones">'+zoneChips()+'</div>'
+    +'<div class="review-cover"><div class="review-head"><div><div class="review-year">'+sat.getFullYear()+'</div><div class="review-range">'+pad(range.start.getMonth()+1)+'.'+pad(range.start.getDate())+'—'+pad(range.end.getMonth()+1)+'.'+pad(range.end.getDate())+'</div></div><div class="review-nav"><button class="arrow" onclick="shiftReview(-1)" aria-label="上一期回顾">‹</button><button class="arrow" onclick="shiftReview(1)" aria-label="下一期回顾"'+(atLatest?' disabled':'')+'>›</button></div></div>'
+    +'<div class="review-counts"><div>贴了 <strong>'+items.length+'</strong> 张贴纸</div><div>记录了 <strong>'+active+'</strong> 天</div></div>'
+    +'<div class="review-collage">'+collage+'</div><div class="review-signoff">这一周的贴贴</div></div>';
+}
+function profileName(){return S.profile.name||'内测人员'}
+function profileAvatar(){return S.profile.avatar?'<img class="profile-avatar" src="'+S.profile.avatar+'" alt="">':'<span class="profile-avatar">'+esc(profileName().slice(0,1))+'</span>'}
+function categoriesPage(){return '<div class="top"><h1>设置</h1></div>'
+  +'<button class="profile-card" onclick="editProfile()">'+profileAvatar()+'<span><strong>'+esc(profileName())+'</strong><small>内测人员</small></span><span class="muted">›</span></button>'
+  +'<h2 class="settings-section">分区</h2>'+S.categories.map(function(c){return '<div class="category-card" onclick="editCategory(\''+c.id+'\')"><span class="symbol">'+(isLocked(c)?'🔒':c.icon)+'</span><div class="grow"><strong>'+esc(c.name)+'</strong><span class="count">'+(isLocked(c)?'已上锁':recordsFor(c.id).length+' 张贴纸')+'</span></div><span class="muted">›</span></div>'}).join('')
+  +'<button class="secondary" onclick="editCategory()">＋ 新建分区</button><h2 class="settings-section">数据</h2><div class="panel"><div class="choices"><button class="secondary" onclick="exportData()">导出备份</button><button class="secondary" onclick="document.getElementById(\'import\').click()">导入备份</button></div></div>'}
+function editProfile(){PROFILE_DRAFT={name:S.profile.name||'',avatar:S.profile.avatar||''};openSheet(header('个人信息')+'<div class="sheet-body"><label>头像</label><button class="secondary" onclick="document.getElementById(\'avatarFile\').click()">选择头像</button><div id="avatarPreview" style="margin:12px 0">'+profileAvatar()+'</div><label for="profileName">昵称</label><input id="profileName" class="input" maxlength="24" value="'+esc(PROFILE_DRAFT.name)+'" placeholder="你的昵称">'+(ROLE==='user'&&ACCOUNT_EMAIL.includes('@')?'<label>账号邮箱</label><div class="input">'+esc(ACCOUNT_EMAIL)+'</div>':'')+'</div><div class="sheet-foot"><button class="primary wide" onclick="saveProfile()">保存</button>'+(window.AndroidApp?'<button class="secondary wide" style="margin-top:10px" onclick="logoutAccount()">退出登录</button>':'')+'</div>')}
+function saveProfile(){if(!PROFILE_DRAFT)return;S.profile.name=document.getElementById('profileName').value.trim().slice(0,24);S.profile.avatar=PROFILE_DRAFT.avatar;PROFILE_DRAFT=null;if(save()){closeSheet();render()}}
+function changeAvatar(file){if(!file||!PROFILE_DRAFT||!/^image\//.test(file.type)||file.size>10*1024*1024){toast('请选择小于 10MB 的图片');return}var img=new Image(),url=URL.createObjectURL(file);img.onload=function(){var c=document.createElement('canvas');c.width=c.height=160;var x=c.getContext('2d'),side=Math.min(img.width,img.height);x.drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,160,160);PROFILE_DRAFT.avatar=c.toDataURL('image/jpeg',.82);document.getElementById('avatarPreview').innerHTML='<img class="profile-avatar" src="'+PROFILE_DRAFT.avatar+'" alt="">';URL.revokeObjectURL(url)};img.onerror=function(){toast('头像读取失败');URL.revokeObjectURL(url)};img.src=url}
+function b64data(bytes){return btoa(String.fromCharCode.apply(null,new Uint8Array(bytes)))}
+function bytes64(value){return Uint8Array.from(atob(value),function(c){return c.charCodeAt(0)})}
+function accountPayloadString(payload){return JSON.stringify(payload)}
+async function adminVerifyKey(){return crypto.subtle.importKey('jwk',ADMIN_PUBLIC_JWK,{name:'RSA-PSS',hash:'SHA-256'},false,['verify'])}
+async function validAccountFile(license){if(!license||!license.payload||typeof license.signature!=='string')return false;var p=license.payload;if(p.v!==1||!/^.{1,64}@.{1,190}\..{2,}$/.test(p.email||'')||p.email!==p.email.toLowerCase()||!/^[0-9a-f]{16}$/.test(p.id||'')||!/^[0-9a-f]{32}$/.test(p.salt||'')||!/^[0-9a-f]{64}$/.test(p.hash||'')||!/^[A-Za-z0-9+/]+={0,2}$/.test(license.signature))return false;try{return await crypto.subtle.verify({name:'RSA-PSS',saltLength:32},await adminVerifyKey(),bytes64(license.signature),new TextEncoder().encode(accountPayloadString(p)))}catch(e){return false}}
+function textFile(file){return new Promise(function(ok,bad){var reader=new FileReader();reader.onload=function(){ok(String(reader.result))};reader.onerror=function(){bad(reader.error)};reader.readAsText(file)})}
+async function importAccountFile(file){if(!file)return;try{var license=JSON.parse(await textFile(file));if(!await validAccountFile(license))throw Error('签名或格式不正确');localStorage.setItem('tietie_account_license_v1',JSON.stringify(license));AUTH_MODE='legacy';showAuth();toast('账号文件已导入，请输入初始密码')}catch(e){toast('账号文件无效：'+(e.message||'请重试'))}}
+function storedLicense(){try{return JSON.parse(localStorage.getItem('tietie_account_license_v1')||'null')}catch(e){return null}}
+function showAuth(){
+  if(AUTHENTICATED)return;
+  document.getElementById('overlay').className='overlay';
+  document.getElementById('sheet').innerHTML='';
+  var license=storedLicense(),legacy=AUTH_MODE==='legacy';
+  document.getElementById('app').className='login-shell';
+  document.getElementById('app').innerHTML='<main class="login-page"><div class="login-mark">贴贴</div><section class="login-card"><h1>登录</h1>'+
+    (legacy?'<label>旧版账号</label>'+(license&&license.payload?'<div class="input">'+esc(license.payload.email)+'</div><label for="accountPassword">密码</label><input id="accountPassword" class="input" type="password" autocomplete="off" placeholder="输入初始密码" onkeydown="if(event.key===\'Enter\')loginAccount()"><button class="primary wide" style="margin-top:20px" onclick="loginAccount()">登录</button>':'<button class="secondary wide" onclick="document.getElementById(\'accountFile\').click()">选择旧账号文件</button>')+'<button class="login-alt" onclick="AUTH_MODE=\'invite\';showAuth()">返回邀请码登录</button>':
+    '<label for="inviteCode">邀请码</label><input id="inviteCode" class="input" type="text" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="输入内测邀请码" onkeydown="if(event.key===\'Enter\')loginInvite()"><button class="primary wide" style="margin-top:20px" onclick="loginInvite()">登录</button><p class="login-help">公开源码演示码：TTTTT-TTTTT-TTTTT-TTTTT。记录保存在本机。</p>')+
+    '</section><div class="login-footer">离线使用 · 照片和记录仅保存在本机</div></main>';
+}
+function cleanInvite(value){return String(value||'').toUpperCase().replace(/[\s-]/g,'')}
+async function inviteHash(value){var bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(cleanInvite(value)));return pinHex(new Uint8Array(bytes))}
+function readableInvite(value){return cleanInvite(value).match(/.{1,5}/g).join('-')}
+var INVITE_SESSION_KEY='tietie_invite_session_v1',INVITE_MIGRATION_KEY='tietie_invite_migration_v1';
+function inviteRole(hash){return hash===INVITE_CONFIG.adminHash?'admin':INVITE_CONFIG.userHashes.indexOf(hash)>=0?'user':''}
+function inviteSession(hash){var role=inviteRole(hash);return role?{v:1,hash:hash,role:role}:null}
+function storedInviteSession(){try{var session=JSON.parse(localStorage.getItem(INVITE_SESSION_KEY)||'null');return session&&session.v===1&&/^[0-9a-f]{64}$/.test(session.hash||'')&&session.role===inviteRole(session.hash)?session:null}catch(e){return null}}
+function rememberInviteSession(session){try{localStorage.setItem(INVITE_MIGRATION_KEY,'1');localStorage.setItem(INVITE_SESSION_KEY,JSON.stringify(session));return true}catch(e){toast('本机登录状态保存失败，下次打开需重新输入邀请码');return false}}
+function forgetInviteSession(){try{localStorage.setItem(INVITE_MIGRATION_KEY,'1');localStorage.removeItem(INVITE_SESSION_KEY)}catch(e){}}
+function previousInviteSession(){
+  try{if(localStorage.getItem(INVITE_MIGRATION_KEY))return null;localStorage.setItem(INVITE_MIGRATION_KEY,'1');var matches=[];
+    if(localStorage.getItem(BASE_KEY+'_admin'))matches.push(inviteSession(INVITE_CONFIG.adminHash));
+    INVITE_CONFIG.userHashes.forEach(function(hash){if(localStorage.getItem(BASE_KEY+'_user_'+hash.slice(0,24)))matches.push(inviteSession(hash))});
+    return matches.length===1?matches[0]:null;
+  }catch(e){return null}
+}
+async function restoreInviteSession(){
+  var saved=null;try{saved=localStorage.getItem(INVITE_SESSION_KEY)}catch(e){}
+  var session=saved?storedInviteSession():previousInviteSession();
+  if(!session){if(saved)forgetInviteSession();return false}
+  try{await activateAccount(session.role,session.role==='user'?'邀请码用户':'',session.role==='user'?session.hash.slice(0,24):'');
+    if(!saved)rememberInviteSession(session);return true;
+  }catch(e){forgetInviteSession();AUTHENTICATED=false;ROLE='guest';ACCOUNT_EMAIL='';S=null;return false}
+}
+async function loginInvite(){
+  if(Date.now()<LOGIN_RETRY_AT){toast('请稍后再试');return}
+  var field=document.getElementById('inviteCode'),code=cleanInvite(field&&field.value);
+  if(!/^[A-Z2-9]{20}$|^[A-Z2-9]{25}$/.test(code)){toast('请输入完整的邀请码');return}
+  try{var hash=await inviteHash(code),session=inviteSession(hash);
+    if(session){LOGIN_FAILURES=0;await activateAccount(session.role,session.role==='user'?'邀请码用户':'',session.role==='user'?hash.slice(0,24):'');rememberInviteSession(session);return}
+  }catch(e){}
+  LOGIN_FAILURES++;if(LOGIN_FAILURES>=5){LOGIN_RETRY_AT=Date.now()+30000;LOGIN_FAILURES=0}
+  toast('邀请码不正确');
+}
+async function loginAccount(){if(Date.now()<LOGIN_RETRY_AT){toast('请稍后再试');return}var license=storedLicense(),field=document.getElementById('accountPassword');if(!license||!field)return;try{if(!await validAccountFile(license))throw Error('账号文件无效');var hash=await pinDigest(field.value,license.payload.salt);if(hash!==license.payload.hash){LOGIN_FAILURES++;if(LOGIN_FAILURES>=5){LOGIN_RETRY_AT=Date.now()+30000;LOGIN_FAILURES=0}toast('密码不正确');return}LOGIN_FAILURES=0;await activateAccount('user',license.payload.email)}catch(e){toast('登录失败：'+(e.message||'请重试'))}}
+async function activateAccount(role,email,inviteId){
+  if(IMAGE_DB){IMAGE_DB.close();IMAGE_DB=null}IMAGE_CACHE={};UNLOCKED=new Set();WIDGET_SYNC_VERSION++;clearTimeout(WIDGET_SYNC_TIMER);
+  if(window.AndroidApp&&AndroidApp.syncWidgets)AndroidApp.syncWidgets('{}');
+  ROLE=role;ACCOUNT_EMAIL=email;AUTHENTICATED=true;
+  var identity=inviteId|| (role==='user'?await accountId(email):'');
+  KEY=role==='admin'?BASE_KEY+'_admin':role==='user'?BASE_KEY+'_user_'+identity:BASE_KEY;
+  IMAGE_DB_NAME=role==='user'?'sticker_calendar_images_v1_user_'+identity:'sticker_calendar_images_v1';
+  TAB='calendar';ZONE='all';closeSheet();await finishBoot();
+}
+async function accountId(email){var data=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(email));return pinHex(new Uint8Array(data)).slice(0,24)}
+function logoutAccount(){
+  if(ROLE!=='user'&&ROLE!=='admin')return;
+  forgetInviteSession();
+  AUTHENTICATED=false;ROLE='guest';ACCOUNT_EMAIL='';S=null;
+  if(IMAGE_DB){IMAGE_DB.close();IMAGE_DB=null}IMAGE_CACHE={};UNLOCKED=new Set();
+  if(window.AndroidApp&&AndroidApp.syncWidgets)AndroidApp.syncWidgets('{}');AUTH_MODE='invite';showAuth();
+}
+function downloadJsonFile(name,content){if(window.AndroidApp&&AndroidApp.beginBackup){if(!AndroidApp.beginBackup(name))throw Error('无法创建文件');for(var p=0;p<content.length;){var end=Math.min(p+65536,content.length);if(end<content.length&&/^[\uD800-\uDBFF]$/.test(content.charAt(end-1)))end--;if(!AndroidApp.appendBackup(content.slice(p,end)))throw Error('写入失败');p=end}if(!AndroidApp.finishBackup())throw Error('保存失败');return}var blob=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(url)},500)}
+function openSheet(body){document.getElementById('sheet').innerHTML=body;document.getElementById('overlay').className='overlay on'}
+function closeSheet(){if(!AUTHENTICATED&&window.AndroidApp){showAuth();return}document.getElementById('overlay').className='overlay';document.getElementById('sheet').innerHTML=''}
+function header(title){return '<div class="sheet-header"><strong>'+title+'</strong><button class="close" onclick="closeSheet()" aria-label="关闭">×</button></div>'}
+function toast(x){var e=document.getElementById('toast');e.textContent=x;e.className='toast on';clearTimeout(toast.timer);toast.timer=setTimeout(function(){e.className='toast'},2300)}
+function pickSource(){openSheet(header('制作')+'<div class="sheet-body"><button class="primary wide" onclick="document.getElementById(\'camera\').click()">拍照</button><button class="secondary" style="width:100%;margin-top:10px" onclick="document.getElementById(\'gallery\').click()">导入图片</button></div>')}
+function b64bytes(s){var b=atob(s),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+function script(path){return new Promise(function(ok,bad){var e=document.createElement('script');e.src=path;e.onload=ok;e.onerror=function(){bad(new Error('离线模型文件缺失：'+path))};document.head.appendChild(e)})}
+function ensureAI(){if(AI_LOADING)return AI_LOADING;AI_LOADING=(async function(){
+  var root='离线模型/';
+  await script(root+'ort.wasm.min.js');await script(root+'wasm-code.js');await script(root+'wasm-binary.js');
+  ort.env.wasm.numThreads=1;
+  ort.env.wasm.wasmPaths={mjs:URL.createObjectURL(new Blob([atob(ORT_MJS)],{type:'text/javascript'}))};
+  ort.env.wasm.wasmBinary=b64bytes(ORT_WASM);window.ORT_MJS=null;window.ORT_WASM=null;
+  await script(root+'model-u2.js');SEG=await ort.InferenceSession.create(b64bytes(MODEL_U2),{executionProviders:['wasm']});window.MODEL_U2=null;
+  await script(root+'model-mobilenet.js');CLASSIFIER=await ort.InferenceSession.create(b64bytes(MODEL_MOBILENET),{executionProviders:['wasm']});window.MODEL_MOBILENET=null;
+  await script(root+'labels-zh.js');LABELS=window.LABELS_ZH;
+})().catch(function(e){AI_LOADING=null;throw e});return AI_LOADING}
+function imageFrom(data){return new Promise(function(ok,bad){var im=new Image();im.onload=function(){ok(im)};im.onerror=bad;im.src=data})}
+function modelTensor(im,n,mean,std,useMax,contain){var c=document.createElement('canvas');c.width=n;c.height=n;var g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,n,n);if(contain){var z=Math.min(n/im.naturalWidth,n/im.naturalHeight),w=im.naturalWidth*z,h=im.naturalHeight*z;g.drawImage(im,(n-w)/2,(n-h)/2,w,h)}else g.drawImage(im,0,0,n,n);var pix=g.getImageData(0,0,n,n).data,max=useMax?1:255,a=new Float32Array(3*n*n),i,ch;if(useMax)for(i=0;i<pix.length;i+=4)max=Math.max(max,pix[i],pix[i+1],pix[i+2]);for(i=0;i<n*n;i++)for(ch=0;ch<3;ch++)a[ch*n*n+i]=(pix[i*4+ch]/max-mean[ch])/std[ch];return new ort.Tensor('float32',a,[1,3,n,n])}
+async function removeBackground(im){
+  var o=await SEG.run({'input.1':modelTensor(im,320,[.485,.456,.406],[.229,.224,.225],true)}),raw=o[SEG.outputNames[0]].data,min=Infinity,max=-Infinity,i;
+  for(i=0;i<raw.length;i++){min=Math.min(min,raw[i]);max=Math.max(max,raw[i])}
+  var mask=document.createElement('canvas');mask.width=mask.height=320;var mg=mask.getContext('2d'),md=mg.createImageData(320,320);
+  for(i=0;i<raw.length;i++){var a=Math.max(0,Math.min(1,((raw[i]-min)/Math.max(.00001,max-min)-.12)/.78));md.data[i*4]=md.data[i*4+1]=md.data[i*4+2]=Math.round(a*255);md.data[i*4+3]=255}
+  mg.putImageData(md,0,0);
+  var scale=Math.min(1,1024/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(1,Math.round(im.naturalWidth*scale)),h=Math.max(1,Math.round(im.naturalHeight*scale));
+  var c=document.createElement('canvas');c.width=w;c.height=h;var g=c.getContext('2d');g.drawImage(im,0,0,w,h);var photo=g.getImageData(0,0,w,h);g.clearRect(0,0,w,h);g.drawImage(mask,0,0,w,h);var alpha=g.getImageData(0,0,w,h).data;
+  var left=w,top=h,right=0,bottom=0;for(i=0;i<w*h;i++){var v=alpha[i*4];photo.data[i*4+3]=v;if(v>35){var x=i%w,y=Math.floor(i/w);left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y)}}
+  if(right<=left||bottom<=top)throw new Error('没有找到清晰主体，请换一张主体更明显的照片');
+  g.putImageData(photo,0,0);var gap=16,x0=Math.max(0,left-gap),y0=Math.max(0,top-gap),x1=Math.min(w,right+gap),y1=Math.min(h,bottom+gap);
+  var cut=document.createElement('canvas');cut.width=x1-x0;cut.height=y1-y0;cut.getContext('2d').drawImage(c,x0,y0,cut.width,cut.height,0,0,cut.width,cut.height);
+  var mime=cut.toDataURL('image/webp',.84);return mime.indexOf('data:image/webp')===0?mime:cut.toDataURL('image/png');
+}
+async function classifySticker(data){var im=await imageFrom(data),o=await CLASSIFIER.run({pixel_values:modelTensor(im,96,[.5,.5,.5],[.5,.5,.5],false,true)}),values=o.logits.data,list=[],i,high=-Infinity;for(i=1;i<values.length;i++)high=Math.max(high,values[i]);var sum=0;for(i=1;i<values.length;i++)sum+=Math.exp(values[i]-high);for(i=1;i<values.length;i++)list.push({name:LABELS[i-1]||'物品',score:Math.exp(values[i]-high)/sum});list.sort(function(a,b){return b.score-a.score});return list.slice(0,3)}
+async function describeSticker(data,names){var im=await imageFrom(data),c=document.createElement('canvas');c.width=c.height=64;var g=c.getContext('2d');g.drawImage(im,0,0,64,64);var p=g.getImageData(0,0,64,64).data,r=0,b=0,gr=0,n=0;for(var i=0;i<p.length;i+=4)if(p[i+3]>120){r+=p[i];gr+=p[i+1];b+=p[i+2];n++}r/=Math.max(n,1);gr/=Math.max(n,1);b/=Math.max(n,1);var hi=Math.max(r,gr,b),lo=Math.min(r,gr,b),color='多色';if(hi<65)color='深色';else if(lo>205)color='浅色';else if(hi-lo<25)color='灰色';else if(r>gr*1.2&&r>b*1.25)color=gr>90?'橙棕色':'红棕色';else if(gr>r*1.2&&gr>b*1.15)color='绿色';else if(b>r*1.2&&b>gr*1.1)color='蓝色';else if(r>130&&gr>105&&b<100)color='棕黄色';var shape=im.naturalHeight>im.naturalWidth*1.6?'偏细长':im.naturalWidth>im.naturalHeight*1.6?'偏扁宽':'比较饱满';var hint=names[0]&&names[0].score>.2?'识物建议：可能是'+names[0].name+'，请核对后修改。':'暂时无法确定物品名称，请自行填写。';return '已自动从照片中分离主体。主体以'+color+'为主，轮廓'+shape+'。'+hint}
+async function processFile(file){if(!file)return;openSheet(header('正在制作贴纸')+'<div class="sheet-body"><div class="ai-status"><div class="spinner"></div>正在本机识别照片主体<br><span class="small">第一次加载离线模型可能稍慢</span></div></div>');try{
+  var data=await new Promise(function(ok,bad){var r=new FileReader();r.onload=function(){ok(r.result)};r.onerror=bad;r.readAsDataURL(file)}),im=await imageFrom(data);
+  await ensureAI();var stickerData=await removeBackground(im),names=await classifySticker(stickerData),description=await describeSticker(stickerData,names);
+  DRAFT={id:null,categoryId:ZONE==='all'?S.categories[0].id:ZONE,name:names[0]&&names[0].score>.9?names[0].name:'',description:description,note:'',tags:[],borderWidth:8,borderMode:'solid',borderColor:'#ffffff',occurredAt:PICKED.getTime()||Date.now(),sticker:stickerData,originalPhoto:data,favorite:false,suggestions:names};
+  showDetail();
+}catch(e){AI_ERROR=e&&e.message||String(e);openSheet(header('识别没有完成')+'<div class="sheet-body"><div class="empty">'+esc(AI_ERROR)+'</div><button class="primary wide" onclick="document.getElementById(\'gallery\').click()">重选照片</button></div>')}}
+function showDetail(){
+  var r=DRAFT;if(!r)return;
+  var suggestions=(r.suggestions||[]).filter(function(x){return x.score>.03}).map(function(x){return '<button class="choice" onclick="suggest(\''+esc(x.name)+'\')">'+esc(x.name)+'</button>'}).join('');
+  var modes=[['solid','实线'],['dashed','虚线'],['dotted','波点虚线'],['glow','✨ 发光']].map(function(x){return '<button class="border-mode'+(borderModeOf(r)===x[0]?' on':'')+'" data-mode="'+x[0]+'" onclick="setBorderMode(\''+x[0]+'\')">'+x[1]+'</button>'}).join('');
+  var colors=['#ffffff','#dfac45','#f06b91','#69c5a1','#68b5e9','#ad8bd9'].map(function(x){return '<button class="color-choice'+(borderColorOf(r)===x?' on':'')+'" data-color="'+x+'" style="--swatch:'+x+'" aria-label="描边与发光颜色 '+x+'" onclick="setBorderColor(\''+x+'\')"></button>'}).join('');
+  var tags=(r.tags||[]).map(function(t,i){return '<button class="tag-pill" onclick="removeTag('+i+')" title="删除标签">'+esc(tagText(t))+' ×</button>'}).join('');
+  openSheet(header(r.id?'贴纸详情':'填写贴纸详情')+
+    '<div class="sheet-body"><div class="preview">'+sticker(r,'detail-sticker')+'</div>'+
+    '<div class="detail-actions"><button class="secondary" onclick="openLasso()">手动描边</button><button class="secondary" onclick="exportSticker()">保存贴纸到相册</button></div>'+
+    '<label for="borderWidth">描边粗细</label><div class="border-line"><input id="borderWidth" type="range" min="0" max="20" step="1" value="'+borderWidthOf(r)+'" oninput="setBorderWidth(Number(this.value))"><output id="borderWidthValue">'+borderWidthOf(r)+' px</output></div><label>描边与发光颜色</label><div class="color-choices">'+colors+'<input class="outline-color-custom" type="color" value="'+borderColorOf(r)+'" aria-label="自定义描边与发光颜色" oninput="setBorderColor(this.value)"></div><label>描边虚实</label><div class="border-modes">'+modes+'</div>'+
+    '<div class="small muted">'+esc(r.description||'这张贴纸已自动抠出主体，可以修改下面的信息。')+'</div>'+
+    (suggestions?'<label>识别建议（点一下填入名称）</label><div class="choices">'+suggestions+'</div>':'')+
+    '<label for="name">这是什么？</label><input id="name" class="input" maxlength="36" placeholder="例如：今天的拿铁" value="'+esc(r.name)+'" oninput="DRAFT.name=this.value">'+
+    '<label>保存到哪个日历分区？</label><div class="choices">'+S.categories.map(function(c){return '<button class="choice'+(c.id===r.categoryId?' on':'')+'" onclick="setDraftCategory(\''+c.id+'\')">'+(isLocked(c)?'🔒':c.icon)+' '+esc(c.name)+'</button>'}).join('')+'</div>'+
+    '<label for="when">日期和时间</label><input id="when" class="input" type="datetime-local" value="'+localInput(r.occurredAt)+'" onchange="DRAFT.occurredAt=new Date(this.value).getTime()">'+
+    '<label for="tagText">标签</label><div class="tag-row"><input id="tagText" class="input" maxlength="30" placeholder="输入标签文字，按回车" onkeydown="if(event.key===\'Enter\')addTag(event)"><button class="secondary" onclick="addTag(event)">添加</button></div><div id="tagList" class="tag-list">'+tags+'</div>'+
+    '<div class="note-head"><label for="note">这天的故事（可选）</label></div><textarea id="note" class="input" placeholder="发生了什么？" oninput="DRAFT.note=this.value">'+esc(r.note)+'</textarea>'+
+    '<label>收藏</label><button class="choice'+(r.favorite?' on':'')+'" onclick="DRAFT.favorite=!DRAFT.favorite;showDetail()">'+(r.favorite?'★ 已收藏':'☆ 收藏这张贴纸')+'</button>'+
+    (r.id?'<div style="margin-top:20px"><button class="secondary" onclick="deleteRecord()">删除贴纸</button></div>':'')+
+    '</div><div class="sheet-foot"><button class="primary wide" onclick="saveDetail()">'+(r.id?'保存修改':'贴到日历上')+'</button></div>');
+  if(!r.displaySticker)scheduleBorderPreview();
+}
+var BORDER_RENDER_TOKEN=0,BORDER_RENDER_TIMER=null;
+function setBorderWidth(value){if(!DRAFT)return;DRAFT.borderWidth=Math.max(0,Math.min(20,Math.round(value)));var out=document.getElementById('borderWidthValue');if(out)out.textContent=DRAFT.borderWidth+' px';scheduleBorderPreview()}
+function setBorderMode(mode){if(!DRAFT||['solid','dashed','dotted','glow'].indexOf(mode)<0)return;var wasGold=DRAFT.borderMode==='gold',oldColor=borderColorOf(DRAFT);DRAFT.borderMode=mode;if(wasGold)DRAFT.borderColor=oldColor;document.querySelectorAll('[data-mode]').forEach(function(b){b.classList.toggle('on',b.dataset.mode===mode)});if(mode==='glow'&&oldColor.toLowerCase()==='#ffffff'){setBorderColor('#dfac45');return}scheduleBorderPreview()}
+function setBorderColor(color){if(!DRAFT||!/^#[0-9a-fA-F]{6}$/.test(color))return;DRAFT.borderColor=color;document.querySelectorAll('[data-color]').forEach(function(b){b.classList.toggle('on',b.dataset.color===color)});var input=document.querySelector('.outline-color-custom');if(input)input.value=color;scheduleBorderPreview()}
+function scheduleBorderPreview(){if(!DRAFT||!DRAFT.sticker)return;var token=++BORDER_RENDER_TOKEN,draft=DRAFT;draft.displaySticker='';clearTimeout(BORDER_RENDER_TIMER);BORDER_RENDER_TIMER=setTimeout(async function(){try{var data=await makeStyledSticker(draft.sticker,draft);if(token!==BORDER_RENDER_TOKEN||DRAFT!==draft)return;draft.displaySticker=data;var im=document.querySelector('.preview img');if(im){im.src=data;im.style.filter=stickerFilter(draft,true)}}catch(e){toast('描边预览失败')}},90)}
+function refreshTags(){var list=document.getElementById('tagList');if(list)list.innerHTML=(DRAFT.tags||[]).map(function(t,i){return '<button class="tag-pill" onclick="removeTag('+i+')" title="删除标签">'+esc(tagText(t))+' ×</button>'}).join('')}
+function addTag(e){if(e)e.preventDefault();if(!DRAFT)return;var input=document.getElementById('tagText');if(!input)return;var name=input.value.trim().slice(0,30);if(!name)return;if(!Array.isArray(DRAFT.tags))DRAFT.tags=[];if(DRAFT.tags.some(function(t){return tagText(t)===name})){toast('标签已存在');return}DRAFT.tags.push(name);input.value='';refreshTags();input.focus()}
+function removeTag(i){if(!DRAFT||!DRAFT.tags)return;DRAFT.tags.splice(i,1);refreshTags()}
+var LASSO_IMAGE=null,LASSO_POINTS=[],LASSO_DRAWING=false,LASSO_POINTERS=new Map(),LASSO_VIEW={scale:1,x:0,y:0},LASSO_PINCH=null,LASSO_GESTURE=false,LASSO_SNAPPED=false,LASSO_CANDIDATE=null,LASSO_SOURCE_CROP=null,LASSO_CORRECTED=null;
+async function openLasso(){
+  if(!DRAFT)return;var source=DRAFT.originalPhoto||DRAFT.sticker;if(!source){toast('没有可描边的原图');return}
+  openSheet(header('手动描边')+'<div class="sheet-body"><div id="lassoHint" class="small muted">双指缩放和移动图片；单指沿主体画圈，靠近起点自动吸附。</div><canvas id="lassoCanvas" class="lasso-canvas"></canvas><div class="lasso-tools"><button class="secondary" onclick="zoomLasso(.8)" aria-label="缩小图片">－</button><button class="secondary" onclick="zoomLasso(1.25)" aria-label="放大图片">＋</button><button class="secondary" onclick="zoomLasso(0)" aria-label="还原缩放">还原</button><span class="lasso-space"></span><button class="secondary" onclick="resetLasso()">重画</button></div></div><div class="sheet-foot lasso-actions"><button class="secondary" onclick="applyLasso(false)">仅按画圈裁切</button><button class="primary" onclick="applyLasso(true)">选区后自动识别</button></div>');
+  try{LASSO_IMAGE=await imageFrom(source);var c=document.getElementById('lassoCanvas');if(!c)return;var fit=Math.min(640/LASSO_IMAGE.naturalWidth,640/LASSO_IMAGE.naturalHeight,1);c.width=Math.max(1,Math.round(LASSO_IMAGE.naturalWidth*fit));c.height=Math.max(1,Math.round(LASSO_IMAGE.naturalHeight*fit));LASSO_POINTS=[];LASSO_POINTERS.clear();LASSO_DRAWING=false;LASSO_VIEW={scale:1,x:0,y:0};LASSO_PINCH=null;LASSO_GESTURE=false;LASSO_SNAPPED=false;drawLasso();c.onpointerdown=lassoPointerDown;c.onpointermove=lassoPointerMove;c.onpointerup=lassoPointerUp;c.onpointercancel=lassoPointerUp}catch(e){toast('原图无法读取')}
+}
+function lassoScreenPoint(e){var c=document.getElementById('lassoCanvas'),r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}}
+function lassoImagePoint(p){return{x:(p.x-LASSO_VIEW.x)/LASSO_VIEW.scale,y:(p.y-LASSO_VIEW.y)/LASSO_VIEW.scale}}
+function lassoClampView(){var c=document.getElementById('lassoCanvas');if(!c)return;LASSO_VIEW.x=Math.max(c.width*(1-LASSO_VIEW.scale),Math.min(0,LASSO_VIEW.x));LASSO_VIEW.y=Math.max(c.height*(1-LASSO_VIEW.scale),Math.min(0,LASSO_VIEW.y))}
+function lassoZoomAt(factor,center){var c=document.getElementById('lassoCanvas');if(!c)return;var old=LASSO_VIEW.scale,next=Math.max(1,Math.min(6,old*factor));LASSO_VIEW.x=center.x-(center.x-LASSO_VIEW.x)*next/old;LASSO_VIEW.y=center.y-(center.y-LASSO_VIEW.y)*next/old;LASSO_VIEW.scale=next;lassoClampView();drawLasso()}
+function zoomLasso(factor){var c=document.getElementById('lassoCanvas');if(!c)return;if(!factor){LASSO_VIEW={scale:1,x:0,y:0};drawLasso();return}lassoZoomAt(factor,{x:c.width/2,y:c.height/2})}
+function lassoPinchState(){var p=Array.from(LASSO_POINTERS.values()),cx=(p[0].x+p[1].x)/2,cy=(p[0].y+p[1].y)/2;return{distance:Math.max(1,Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)),center:{x:cx,y:cy},scale:LASSO_VIEW.scale,x:LASSO_VIEW.x,y:LASSO_VIEW.y}}
+function lassoPointerDown(e){var c=document.getElementById('lassoCanvas');e.preventDefault();c.setPointerCapture(e.pointerId);LASSO_POINTERS.set(e.pointerId,lassoScreenPoint(e));if(LASSO_POINTERS.size>=2){LASSO_DRAWING=false;LASSO_GESTURE=true;LASSO_POINTS=[];LASSO_PINCH=lassoPinchState();setLassoHint('已缩放，可单指重新画圈');drawLasso();return}if(LASSO_GESTURE)return;LASSO_DRAWING=true;LASSO_SNAPPED=false;LASSO_POINTS=[];lassoPoint(e)}
+function lassoPointerMove(e){if(!LASSO_POINTERS.has(e.pointerId))return;LASSO_POINTERS.set(e.pointerId,lassoScreenPoint(e));if(LASSO_POINTERS.size>=2){if(!LASSO_PINCH)LASSO_PINCH=lassoPinchState();var now=lassoPinchState(),base=LASSO_PINCH,next=Math.max(1,Math.min(6,base.scale*now.distance/base.distance));LASSO_VIEW.scale=next;LASSO_VIEW.x=now.center.x-(base.center.x-base.x)*next/base.scale;LASSO_VIEW.y=now.center.y-(base.center.y-base.y)*next/base.scale;lassoClampView();drawLasso();return}if(LASSO_DRAWING&&!LASSO_GESTURE)lassoPoint(e)}
+function lassoPointerUp(e){if(!LASSO_POINTERS.has(e.pointerId))return;if(LASSO_DRAWING&&!LASSO_GESTURE)lassoPoint(e);LASSO_POINTERS.delete(e.pointerId);LASSO_PINCH=null;if(LASSO_DRAWING){LASSO_DRAWING=false;if(LASSO_POINTS.length>=8&&!LASSO_SNAPPED){LASSO_POINTS.push({x:LASSO_POINTS[0].x,y:LASSO_POINTS[0].y});setLassoHint('轮廓已闭合，可预览裁切或重画')}drawLasso()}if(!LASSO_POINTERS.size)LASSO_GESTURE=false}
+function setLassoHint(message){var h=document.getElementById('lassoHint');if(h)h.textContent=message}
+function lassoPoint(e){var c=document.getElementById('lassoCanvas');if(!c||LASSO_SNAPPED)return;var p=lassoImagePoint(lassoScreenPoint(e));p.x=Math.max(0,Math.min(c.width,p.x));p.y=Math.max(0,Math.min(c.height,p.y));var last=LASSO_POINTS[LASSO_POINTS.length-1];if(last&&Math.hypot(p.x-last.x,p.y-last.y)<1.5/LASSO_VIEW.scale)return;var first=LASSO_POINTS[0],threshold=28*c.width/c.getBoundingClientRect().width/LASSO_VIEW.scale;if(first&&LASSO_POINTS.length>14&&Math.hypot(p.x-first.x,p.y-first.y)<threshold){LASSO_POINTS.push({x:first.x,y:first.y});LASSO_SNAPPED=true;LASSO_DRAWING=false;setLassoHint('已吸附起点，可预览裁切或重画');if(navigator.vibrate)navigator.vibrate(20)}else LASSO_POINTS.push(p);drawLasso()}
+function drawLasso(){var c=document.getElementById('lassoCanvas');if(!c||!LASSO_IMAGE)return;var g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);g.save();g.translate(LASSO_VIEW.x,LASSO_VIEW.y);g.scale(LASSO_VIEW.scale,LASSO_VIEW.scale);g.drawImage(LASSO_IMAGE,0,0,c.width,c.height);g.restore();if(!LASSO_POINTS.length)return;g.beginPath();LASSO_POINTS.forEach(function(p,i){var x=p.x*LASSO_VIEW.scale+LASSO_VIEW.x,y=p.y*LASSO_VIEW.scale+LASSO_VIEW.y;if(i)g.lineTo(x,y);else g.moveTo(x,y)});if(!LASSO_DRAWING&&LASSO_POINTS.length>2)g.closePath();g.strokeStyle='#f34e64';g.lineWidth=3*c.width/c.getBoundingClientRect().width;g.lineJoin='round';g.lineCap='round';g.stroke();var first=LASSO_POINTS[0];g.beginPath();g.arc(first.x*LASSO_VIEW.scale+LASSO_VIEW.x,first.y*LASSO_VIEW.scale+LASSO_VIEW.y,7*c.width/c.getBoundingClientRect().width,0,Math.PI*2);g.fillStyle=LASSO_SNAPPED?'#55ab82':'#ffffff';g.fill();g.strokeStyle='#f34e64';g.stroke()}
+function resetLasso(){LASSO_POINTS=[];LASSO_SNAPPED=false;LASSO_DRAWING=false;setLassoHint('双指缩放和移动图片；单指沿主体画圈，靠近起点自动吸附。');drawLasso()}
+function applyLasso(auto){
+  var c=document.getElementById('lassoCanvas');if(!c||LASSO_POINTS.length<8){toast('请沿物体画出完整轮廓');return}
+  var xs=LASSO_POINTS.map(function(p){return p.x}),ys=LASSO_POINTS.map(function(p){return p.y}),pad=8,x0=Math.max(0,Math.floor(Math.min.apply(null,xs)-pad)),y0=Math.max(0,Math.floor(Math.min.apply(null,ys)-pad)),x1=Math.min(c.width,Math.ceil(Math.max.apply(null,xs)+pad)),y1=Math.min(c.height,Math.ceil(Math.max.apply(null,ys)+pad));if(x1-x0<12||y1-y0<12){toast('轮廓太小，请重画');return}
+  var scale=Math.min(2048/Math.max(LASSO_IMAGE.naturalWidth,LASSO_IMAGE.naturalHeight),1),sx=LASSO_IMAGE.naturalWidth*scale/c.width,sy=LASSO_IMAGE.naturalHeight*scale/c.height,out=document.createElement('canvas');out.width=Math.max(1,Math.ceil((x1-x0)*sx));out.height=Math.max(1,Math.ceil((y1-y0)*sy));var g=out.getContext('2d');g.beginPath();g.moveTo((LASSO_POINTS[0].x-x0)*sx,(LASSO_POINTS[0].y-y0)*sy);LASSO_POINTS.slice(1).forEach(function(p){g.lineTo((p.x-x0)*sx,(p.y-y0)*sy)});g.closePath();g.clip();g.drawImage(LASSO_IMAGE,-x0*sx,-y0*sy,LASSO_IMAGE.naturalWidth*scale,LASSO_IMAGE.naturalHeight*scale);LASSO_CANDIDATE=out.toDataURL('image/png');
+  var source=document.createElement('canvas');source.width=out.width;source.height=out.height;source.getContext('2d').drawImage(LASSO_IMAGE,-x0*sx,-y0*sy,LASSO_IMAGE.naturalWidth*scale,LASSO_IMAGE.naturalHeight*scale);LASSO_SOURCE_CROP=source.toDataURL('image/png');LASSO_CORRECTED=null;if(auto)correctLasso();else showLassoPreview(false)
+}
+function showLassoPreview(corrected){if(!LASSO_CANDIDATE)return;var comparison=corrected&&LASSO_CORRECTED?'<div class="lasso-compare"><div><img class="lasso-result" src="'+LASSO_CANDIDATE+'" alt="手绘裁切结果"><span>手绘</span></div><div><img class="lasso-result" src="'+LASSO_CORRECTED+'" alt="自动识别结果"><span>自动识别</span></div></div>':'<img class="lasso-result" src="'+LASSO_CANDIDATE+'" alt="手绘裁切预览">';openSheet(header('裁切预览')+'<div class="sheet-body">'+comparison+'<div class="small muted">'+(corrected?'自动识别只处理选区内的主体，若误删可保留手绘结果。':'可直接保留手绘轮廓，也可以让本机模型识别选区内的物体、人像或动物。')+'</div><div class="lasso-actions"><button class="secondary" onclick="openLasso()">重画</button>'+(!corrected?'<button class="secondary" onclick="correctLasso()">选区后自动识别</button>':'')+'</div></div><div class="sheet-foot lasso-actions"><button class="secondary" onclick="commitLasso(false)">保留手绘</button>'+(corrected?'<button class="primary" onclick="commitLasso(true)">采用识别结果</button>':'')+'</div>')}
+async function correctLasso(){if(!LASSO_CANDIDATE||!LASSO_SOURCE_CROP)return;openSheet(header('正在识别')+'<div class="sheet-body"><div class="ai-status"><div class="spinner"></div>正在本机识别选区内的主体</div></div>');try{await ensureAI();LASSO_CORRECTED=await refineLassoSticker(LASSO_SOURCE_CROP,LASSO_CANDIDATE);showLassoPreview(true)}catch(e){showLassoPreview(false);toast('没有识别出清晰主体，可保留手绘或重画')}}
+async function refineLassoSticker(sourceData,manualData){
+  var source=await imageFrom(sourceData),manual=await imageFrom(manualData),result=await SEG.run({'input.1':modelTensor(source,320,[.485,.456,.406],[.229,.224,.225],true)}),raw=result[SEG.outputNames[0]].data,min=Infinity,max=-Infinity;for(var i=0;i<raw.length;i++){min=Math.min(min,raw[i]);max=Math.max(max,raw[i])}if(max-min<.00001)throw new Error('无法辨认主体');
+  var mask=document.createElement('canvas');mask.width=mask.height=320;var mg=mask.getContext('2d'),md=mg.createImageData(320,320);for(i=0;i<raw.length;i++){var v=Math.max(0,Math.min(1,((raw[i]-min)/(max-min)-.18)/.68));md.data[i*4]=md.data[i*4+1]=md.data[i*4+2]=Math.round(v*255);md.data[i*4+3]=255}mg.putImageData(md,0,0);
+  var c=document.createElement('canvas');c.width=manual.naturalWidth;c.height=manual.naturalHeight;var g=c.getContext('2d');g.drawImage(manual,0,0);var photo=g.getImageData(0,0,c.width,c.height);g.clearRect(0,0,c.width,c.height);g.drawImage(mask,0,0,c.width,c.height);var alpha=g.getImageData(0,0,c.width,c.height).data,oldCount=0,newCount=0;for(i=0;i<c.width*c.height;i++){var a=photo.data[i*4+3];if(a>35)oldCount++;photo.data[i*4+3]=Math.round(a*alpha[i*4]/255);if(photo.data[i*4+3]>35)newCount++}if(newCount<oldCount*.12)throw new Error('校正后主体过少');g.putImageData(photo,0,0);return c.toDataURL('image/png')
+}
+function commitLasso(corrected){if(!DRAFT||!LASSO_CANDIDATE)return;DRAFT.sticker=corrected&&LASSO_CORRECTED?LASSO_CORRECTED:LASSO_CANDIDATE;DRAFT.displaySticker='';DRAFT.description=corrected?'已按手绘范围在本机识别主体并校正边缘，可继续修改名称和记录。':'已按手绘轮廓制作贴纸，可继续修改名称和记录。';LASSO_CANDIDATE=null;LASSO_SOURCE_CROP=null;LASSO_CORRECTED=null;showDetail();toast('已更新贴纸轮廓')}
+function traceStickerContours(alpha,w,h){
+  var edges=new Map(),key=function(x,y){return x+','+y},inside=function(x,y){return x>=0&&y>=0&&x<w&&y<h&&alpha[y*w+x]>64};
+  function edge(x1,y1,x2,y2){var k=key(x1,y1),list=edges.get(k);if(!list){list=[];edges.set(k,list)}list.push({x:x2,y:y2})}
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++)if(inside(x,y)){
+    if(!inside(x,y-1))edge(x,y,x+1,y);
+    if(!inside(x+1,y))edge(x+1,y,x+1,y+1);
+    if(!inside(x,y+1))edge(x+1,y+1,x,y+1);
+    if(!inside(x-1,y))edge(x,y+1,x,y);
+  }
+  var loops=[];
+  while(edges.size){
+    var start=edges.keys().next().value,current=start,points=[],limit=w*h*4;
+    do{
+      var nextEdges=edges.get(current);if(!nextEdges||!nextEdges.length)break;
+      var comma=current.indexOf(',');points.push({x:Number(current.slice(0,comma)),y:Number(current.slice(comma+1))});
+      var next=nextEdges.pop();if(!nextEdges.length)edges.delete(current);
+      current=key(next.x,next.y);
+    }while(current!==start&&points.length<limit);
+    if(current===start&&points.length>=6)loops.push(points);
+  }
+  return loops;
+}
+function paintPatternBorder(g,im,pad,width,color,mode,canvas){
+  var scale=Math.min(1,720/Math.max(canvas.width,canvas.height)),mask=document.createElement('canvas');
+  mask.width=Math.max(1,Math.ceil(canvas.width*scale));mask.height=Math.max(1,Math.ceil(canvas.height*scale));
+  var mg=mask.getContext('2d'),offset=width*1.05;
+  mg.scale(scale,scale);
+  for(var a=0;a<360;a+=15){var t=a*Math.PI/180;mg.drawImage(im,pad+Math.cos(t)*offset,pad+Math.sin(t)*offset)}
+  mg.drawImage(im,pad,pad);
+  var rgba=mg.getImageData(0,0,mask.width,mask.height).data,alpha=new Uint8Array(mask.width*mask.height);
+  for(var i=0;i<alpha.length;i++)alpha[i]=rgba[i*4+3];
+  var loops=traceStickerContours(alpha,mask.width,mask.height);
+  g.save();g.scale(1/scale,1/scale);g.strokeStyle=color;g.lineJoin='round';g.lineCap='round';
+  g.lineWidth=Math.max(1.5,width*(mode==='dotted'?0.72:0.58))*scale;
+  g.setLineDash(mode==='dotted'?[.1*scale,Math.max(3,width*1.8)*scale]:[Math.max(4,width*2.15)*scale,Math.max(3,width*1.4)*scale]);
+  loops.forEach(function(points){
+    var n=points.length,last=points[n-1],first=points[0];
+    g.beginPath();g.moveTo((last.x+first.x)/2,(last.y+first.y)/2);
+    for(var j=0;j<n;j++){var p=points[j],q=points[(j+1)%n];g.quadraticCurveTo(p.x,p.y,(p.x+q.x)/2,(p.y+q.y)/2)}
+    g.closePath();g.stroke();
+  });
+  g.restore();
+}
+function mixHexColor(color,target,amount){var a=parseInt(color.slice(1),16),b=parseInt(target.slice(1),16),out='#';for(var shift=16;shift>=0;shift-=8){var n=Math.round(((a>>shift)&255)*(1-amount)+((b>>shift)&255)*amount);out+=n.toString(16).padStart(2,'0')}return out}
+function paintGlowBorder(g,im,pad,width,color,c){
+  var tint=document.createElement('canvas');tint.width=im.naturalWidth;tint.height=im.naturalHeight;var tg=tint.getContext('2d');tg.drawImage(im,0,0);tg.globalCompositeOperation='source-in';var gradient=tg.createLinearGradient(0,0,tint.width,tint.height);gradient.addColorStop(0,mixHexColor(color,'#ffffff',.72));gradient.addColorStop(.35,color);gradient.addColorStop(.7,mixHexColor(color,'#000000',.28));gradient.addColorStop(1,mixHexColor(color,'#ffffff',.55));tg.fillStyle=gradient;tg.fillRect(0,0,tint.width,tint.height);
+  var ring=document.createElement('canvas');ring.width=c.width;ring.height=c.height;var rg=ring.getContext('2d');for(var a=0;a<360;a+=10){var t=a*Math.PI/180;rg.drawImage(tint,pad+Math.cos(t)*width,pad+Math.sin(t)*width)}
+  var rgb=parseInt(color.slice(1),16);g.save();g.shadowColor='rgba('+((rgb>>16)&255)+','+((rgb>>8)&255)+','+(rgb&255)+',.9)';g.shadowBlur=Math.max(10,width*2.4);g.drawImage(ring,0,0);g.restore();g.drawImage(ring,0,0)
+}
+async function makeStyledSticker(data,settings){
+  var im=await imageFrom(data),width=borderWidthOf(settings),color=borderColorOf(settings),mode=borderModeOf(settings),pad=width?Math.ceil(width*(mode==='glow'?4.5:2.4)+(mode==='glow'?12:2)):0,c=document.createElement('canvas');
+  c.width=im.naturalWidth+pad*2;c.height=im.naturalHeight+pad*2;
+  var g=c.getContext('2d');
+  if(width){
+    if(mode==='glow')paintGlowBorder(g,im,pad,width,color,c);
+    else if(mode==='solid'){
+      var tint=document.createElement('canvas');tint.width=im.naturalWidth;tint.height=im.naturalHeight;
+      var tg=tint.getContext('2d');tg.drawImage(im,0,0);tg.globalCompositeOperation='source-in';tg.fillStyle=color;tg.fillRect(0,0,tint.width,tint.height);
+      for(var a=0;a<360;a+=12){var t=a*Math.PI/180;g.drawImage(tint,pad+Math.cos(t)*width,pad+Math.sin(t)*width)}
+    }else paintPatternBorder(g,im,pad,width,color,mode,c);
+  }
+  g.drawImage(im,pad,pad);
+  return c.toDataURL('image/png');
+}
+async function exportSticker(){if(!DRAFT||!DRAFT.sticker){toast('没有可导出的贴纸');return}try{var data=await makeStyledSticker(DRAFT.sticker,DRAFT),name=(DRAFT.name||'贴纸').replace(/[\\/:*?"<>|]/g,'_').slice(0,30)+'_'+Date.now()+'.png';if(window.AndroidApp&&AndroidApp.saveSticker){AndroidApp.saveSticker(name,data)}else{var link=document.createElement('a');link.href=data;link.download=name;document.body.appendChild(link);link.click();link.remove();toast('贴纸已下载')}}catch(e){toast('导出失败，请重试')}}
+function suggest(x){DRAFT.name=x;showDetail()}
+function setDraftCategory(x){if(isLocked(cat(x))){requestUnlock(x,function(){DRAFT.categoryId=x;showDetail()});return}DRAFT.categoryId=x;showDetail()}
+async function saveDetail(){
+  if(!DRAFT.name.trim()){toast('先给贴纸取个名字');return}
+  if(isLocked(cat(DRAFT.categoryId))){requestUnlock(DRAFT.categoryId,function(){showDetail()});return}
+  if(!isFinite(DRAFT.occurredAt)){toast('日期无效');return}
+  var rid=DRAFT.id||id('s'),data=DRAFT.sticker,source=DRAFT.originalPhoto||'',styled='';
+  try{if(data)styled=await makeStyledSticker(data,DRAFT)}catch(e){toast('描边生成失败，请重试');return}
+  var record={id:rid,categoryId:DRAFT.categoryId,name:DRAFT.name.trim(),description:DRAFT.description,note:DRAFT.note,tags:(DRAFT.tags||[]).map(tagText).filter(Boolean),borderWidth:borderWidthOf(DRAFT),borderMode:borderModeOf(DRAFT),borderColor:borderColorOf(DRAFT),occurredAt:DRAFT.occurredAt,sticker:IMAGE_DB?'':data,styledSticker:IMAGE_DB?'':styled,source:IMAGE_DB?'':source,hasSticker:!!data,hasStyled:!!styled,hasSource:!!source,favorite:DRAFT.favorite};
+  var before=S.records.slice(),at=-1;
+  try{if(IMAGE_DB&&data){await imageWrite(rid,data);IMAGE_CACHE[rid]=data}if(IMAGE_DB&&styled){await imageWrite('styled:'+rid,styled);IMAGE_CACHE['styled:'+rid]=styled}if(IMAGE_DB&&source)await imageWrite('source:'+rid,source)}catch(e){toast('图片保存失败，请重试');return}
+  for(var i=0;i<S.records.length;i++)if(S.records[i].id===rid)at=i;
+  if(at>=0)S.records[at]=record;else S.records.push(record);
+  if(!save()){S.records=before;return}
+  ZONE=record.categoryId;VIEW=new Date(record.occurredAt);PICKED=new Date(record.occurredAt);DRAFT=null;closeSheet();go('calendar');toast('贴纸已贴进日历');
+}
+async function openRecord(rid){var r=S.records.filter(function(x){return x.id===rid})[0];if(!r)return;if(isLocked(cat(r.categoryId))){requestUnlock(r.categoryId,function(){openRecord(rid)});return}if(TAB==='favorites')haptic();DRAFT=JSON.parse(JSON.stringify(r));DRAFT.sticker=stickerData(r);DRAFT.displaySticker=styledData(r);DRAFT.originalPhoto=r.source||(r.hasSource?await imageRead('source:'+r.id):'')||'';showDetail()}
+function deleteRecord(){if(!DRAFT||!DRAFT.id||!confirm('确定删除这张贴纸？'))return;S.records=S.records.filter(function(r){return r.id!==DRAFT.id});save();imageRemove(DRAFT.id);imageRemove('styled:'+DRAFT.id);imageRemove('source:'+DRAFT.id);delete IMAGE_CACHE[DRAFT.id];delete IMAGE_CACHE['styled:'+DRAFT.id];DRAFT=null;closeSheet();render();toast('已删除')}
+function editCategory(cid){var c=cid?cat(cid):{id:'',name:'',icon:'🍊',private:false};if(cid&&isLocked(c)){requestUnlock(cid,function(){editCategory(cid)});return}openSheet(header(cid?'编辑分区':'新建分区')+'<div class="sheet-body"><label for="catIcon">分区图标</label><input class="input" id="catIcon" maxlength="4" value="'+esc(c.icon)+'"><div class="choices" style="margin-top:9px">'+CATEGORY_EMOJIS.map(function(x){return '<button class="choice emoji-choice" type="button" onclick="document.getElementById(\'catIcon\').value=\''+x+'\'">'+x+'</button>'}).join('')+'</div><label for="catName">分区名称</label><input class="input" id="catName" maxlength="16" placeholder="例如：恋爱区" value="'+esc(c.name)+'"><label class="private-toggle"><input id="catPrivate" type="checkbox" '+(c.private?'checked':'')+' onchange="togglePinFields()">🔒 隐私分区</label><div id="pinFields" style="display:'+(c.private?'block':'none')+'"><label for="catPin">'+(c.private?'更换密码（不填则保留原密码）':'设置 6—12 位数字密码')+'</label><input id="catPin" class="input" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password" placeholder="6—12 位数字"><label for="catPinAgain">确认新密码</label><input id="catPinAgain" class="input" type="password" inputmode="numeric" maxlength="12" autocomplete="new-password" placeholder="再次输入"><div class="small muted" style="margin-top:10px">离开应用后自动上锁，请记住密码。</div></div>'+(cid?'<button class="secondary" style="margin-top:22px" onclick="deleteCategory(\''+cid+'\')">删除分区</button>':'')+'</div><div class="sheet-foot"><button class="primary wide" onclick="saveCategory(\''+c.id+'\')">保存分区</button></div>')}
+function togglePinFields(){document.getElementById('pinFields').style.display=document.getElementById('catPrivate').checked?'block':'none'}
+async function saveCategory(cid){var name=document.getElementById('catName').value.trim(),icon=(document.getElementById('catIcon').value.trim()||'📌').replace(/[<>"'&]/g,''),wantsPrivate=document.getElementById('catPrivate').checked,pin=document.getElementById('catPin').value,pinAgain=document.getElementById('catPinAgain').value,existing=cid?cat(cid):null;if(!name){toast('请输入分区名称');return}if(S.categories.some(function(c){return c.id!==cid&&c.name===name})){toast('已有同名分区');return}var salt=existing&&existing.pinSalt||'',hash=existing&&existing.pinHash||'';if(wantsPrivate){if(!crypto.subtle){toast('当前环境不支持密码锁');return}if(pin||!existing||!existing.private){if(!/^[0-9]{6,12}$/.test(pin)){toast('密码需为 6—12 位数字');return}if(pin!==pinAgain){toast('两次密码不一致');return}salt=pinHex(crypto.getRandomValues(new Uint8Array(16)));hash=await pinDigest(pin,salt)}}else{salt='';hash=''}var c=existing||{id:id('z')};c.name=name;c.icon=icon;c.private=wantsPrivate;c.pinSalt=salt;c.pinHash=hash;if(!existing){S.categories.push(c);ZONE=c.id}if(wantsPrivate)UNLOCKED.add(c.id);else UNLOCKED.delete(c.id);if(!save())return;closeSheet();render()}
+function deleteCategory(cid){if(S.categories.length<2){toast('至少保留一个分区');return}var n=recordsFor(cid).length,target=S.categories.filter(function(c){return c.id!==cid})[0];if(!confirm('删除分区后，'+n+' 张贴纸将移到「'+target.name+'」。继续？'))return;S.records.forEach(function(r){if(r.categoryId===cid)r.categoryId=target.id});S.categories=S.categories.filter(function(c){return c.id!==cid});if(ZONE===cid)ZONE=target.id;save();closeSheet();render()}
+async function exportData(){var locked=S.categories.filter(isLocked);if(locked.length){requestUnlock(locked[0].id,function(){exportData()});return}var copy=JSON.parse(JSON.stringify(S));for(var i=0;i<copy.records.length;i++){var r=copy.records[i];r.sticker=stickerData(r);r.styledSticker=styledData(r);if(r.hasSource&&!r.source)r.source=await imageRead('source:'+r.id)||''}var content=JSON.stringify(copy),filename='贴纸日历备份_'+todayKey()+'.json';if(window.AndroidApp&&AndroidApp.beginBackup){if(!AndroidApp.beginBackup(filename)){toast('备份创建失败');return}for(var p=0;p<content.length;){var end=Math.min(p+65536,content.length);if(end<content.length&&/^[\uD800-\uDBFF]$/.test(content.charAt(end-1)))end--;if(!AndroidApp.appendBackup(content.slice(p,end))){toast('备份写入失败');return}p=end}if(!AndroidApp.finishBackup())toast('备份保存失败');return}var b=new Blob([content],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(url)},500)}
+function validBackup(d){if(!d||!Array.isArray(d.categories)||!d.categories.length||!Array.isArray(d.records))return false;if(d.profile&&(typeof d.profile.name!=='string'||d.profile.name.length>24||typeof d.profile.avatar!=='string'||(d.profile.avatar&&!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]{1,500000}$/.test(d.profile.avatar))))return false;var ids={};for(var i=0;i<d.categories.length;i++){var c=d.categories[i];if(!/^[A-Za-z0-9_-]+$/.test(c.id)||ids[c.id]||typeof c.name!=='string'||typeof c.icon!=='string'||/[<>"'&]/.test(c.icon))return false;if(c.private&&(!/^[0-9a-f]{32}$/.test(c.pinSalt||'')||!/^[0-9a-f]{64}$/.test(c.pinHash||'')))return false;ids[c.id]=1}for(i=0;i<d.records.length;i++){var r=d.records[i];if(!/^[A-Za-z0-9_-]+$/.test(r.id)||!ids[r.categoryId]||(r.sticker&&!/^data:image\/(png|webp|jpeg);base64,/.test(r.sticker))||(r.styledSticker&&!/^data:image\/png;base64,/.test(r.styledSticker))||(r.source&&!/^data:image\/(png|webp|jpeg);base64,/.test(r.source)))return false}return true}
+function importData(file){if(!file)return;var r=new FileReader();r.onload=async function(){try{var d=JSON.parse(r.result);if(!validBackup(d))throw Error('格式不正确');if(!confirm('导入会覆盖当前贴纸。请确认已备份，是否继续？'))return;var prev=S,prevCache=IMAGE_CACHE;S=d;normalize();IMAGE_CACHE={};if(IMAGE_DB){for(var i=0;i<S.records.length;i++){var rec=S.records[i];if(rec.sticker){await imageWrite(rec.id,rec.sticker);IMAGE_CACHE[rec.id]=rec.sticker;rec.sticker='';rec.hasSticker=true}else if(rec.hasSticker)IMAGE_CACHE[rec.id]=await imageRead(rec.id)||'';if(rec.styledSticker){await imageWrite('styled:'+rec.id,rec.styledSticker);IMAGE_CACHE['styled:'+rec.id]=rec.styledSticker;rec.styledSticker='';rec.hasStyled=true}if(rec.source){await imageWrite('source:'+rec.id,rec.source);rec.source='';rec.hasSource=true}}}if(!save()){S=prev;IMAGE_CACHE=prevCache;return}UNLOCKED=new Set();ZONE='all';closeSheet();render();toast('已导入备份')}catch(e){toast('导入失败：'+(e.message||'文件错误'))}};r.readAsText(file)}
+async function finishBoot(){load();ZONE='all';PICKED=new Date();VIEW=new Date();FAV_WEEK=new Date();FAV_PICKED=new Date();REVIEW_SAT=latestReviewSaturday(new Date());if(!BOOT_READY){BOOT_READY=true;['camera','gallery'].forEach(function(x){document.getElementById(x).addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)processFile(f)})});document.getElementById('import').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';importData(f)})}try{await loadImages()}catch(e){toast('图片存储读取失败，请导出备份')}render();scheduleWidgetSync()}
+async function boot(){
+  document.getElementById('overlay').addEventListener('click',function(e){if(e.target===this)closeSheet()});
+  document.addEventListener('visibilitychange',function(){if(document.hidden)lockPrivateZones()});
+  [['accountFile',importAccountFile],['avatarFile',changeAvatar]].forEach(function(pair){document.getElementById(pair[0]).addEventListener('change',function(e){var file=e.target.files&&e.target.files[0];e.target.value='';if(file)pair[1](file)})});
+  if(!window.AndroidApp){await finishBoot();return}
+  if(!crypto.subtle){document.getElementById('app').innerHTML='<div class="login-page">此设备缺少离线账号验证功能。</div>';return}
+  if(AndroidApp.syncWidgets)AndroidApp.syncWidgets('{}');if(await restoreInviteSession())return;showAuth();
+}
+
+boot();
+</script>
+</body>
+</html>

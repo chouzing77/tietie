@@ -1,0 +1,23 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.tietie.calendar'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.tietie.calendar'
+        minSdk 26
+        targetSdk 34
+        versionCode 19
+        versionName '1.8.3'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+}

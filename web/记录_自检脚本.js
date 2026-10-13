@@ -1,0 +1,222 @@
+/* 贴纸日历离线包自检：node 记录_自检脚本.js */
+const fs=require('fs'),path=require('path'),crypto=require('crypto'),vm=require('vm');
+const root=__dirname,html=fs.readFileSync(path.join(root,'记录.html'),'utf8');
+const match=html.match(/<script>([\s\S]*?)<\/script>/);
+let passed=0,failed=0;
+function ok(value,label){if(value){passed++;console.log('通过 '+label)}else{failed++;console.log('失败 '+label)}}
+ok(!!match,'页面包含应用脚本');
+if(!match)process.exit(1);
+const js=match[1];
+try{new vm.Script(js);ok(true,'应用脚本语法')}catch(e){ok(false,'应用脚本语法：'+e.message)}
+const store={};
+const context=vm.createContext({window:{},document:{},localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>store[k]=v},Date,Math,JSON,Array,Object,String,Number,Boolean,RegExp,Promise,Blob:function(){},setTimeout,clearTimeout,confirm:()=>true});
+try{vm.runInContext(js.replace(/\bboot\(\);\s*$/,''),context);ok(true,'应用逻辑可载入')}catch(e){ok(false,'应用逻辑可载入：'+e.message)}
+if(context.defaultState){
+  const state=context.defaultState();
+  ok(state.categories.map(x=>x.name).join('|')==='美食|日常|学习','默认三个短分区名');
+  ok(context.CATEGORY_EMOJIS.length>=40&&context.CATEGORY_EMOJIS.includes('🍵')&&!context.CATEGORY_EMOJIS.includes('🧋'),'分区图标扩充且替换不兼容图标');
+  ok(state.records.length===0,'新用户没有示例记录');
+  context.S=state;context.ZONE=state.categories[0].id;
+  ok(context.calendarPage().includes('<h1>贴贴</h1>'),'首页极简标题');
+  ok(context.calendarPage().includes('美食'),'首页可以切换分区');
+  ok(context.statsPage().includes('<h1>统计</h1>'),'统计页极简标题');
+  ok(context.nav().includes("go('review')")&&context.nav().includes('回顾')&&!context.nav().includes("go('categories')"),'底部导航改为回顾');
+  const saturday=context.latestReviewSaturday(new Date(2026,8,26));
+  const sunday=context.latestReviewSaturday(new Date(2026,8,27));
+  const reviewRange=context.reviewWindow(saturday);
+  ok(context.dateKey(saturday.getTime())==='2026-09-26'&&context.dateKey(sunday.getTime())==='2026-09-26','周六生成最近一期，周日仍显示该期');
+  ok(context.dateKey(reviewRange.start.getTime())==='2026-09-19'&&context.dateKey(reviewRange.end.getTime())==='2026-09-25','回顾仅覆盖周六前七天');
+  context.REVIEW_SAT=saturday;
+  state.records.push({id:'review-start',categoryId:'food',name:'周初贴纸',occurredAt:new Date(2026,8,19,12).getTime(),tags:[]},{id:'review-end',categoryId:'life',name:'周末贴纸',occurredAt:new Date(2026,8,25,12).getTime(),tags:[]},{id:'review-sat',categoryId:'study',name:'本周六贴纸',occurredAt:new Date(2026,8,26,12).getTime(),tags:[]});
+  context.ZONE='all';
+  const review=context.reviewPage();
+  ok(context.calendarPage().includes('aria-label="管理分区"')&&!review.includes('aria-label="管理分区"'),'分区管理仅从日历页进入');
+  ok(review.includes('<h1>回顾</h1>')&&review.includes('09.19—09.25')&&review.includes('周初贴纸')&&review.includes('周末贴纸')&&!review.includes('本周六贴纸'),'回顾时间边界与贴纸拼贴');
+  ok(review.includes('贴了 <strong>2</strong> 张贴纸')&&review.includes('记录了 <strong>2</strong> 天'),'回顾统计实际贴纸数与记录天数');
+  context.ZONE='food';
+  ok(context.reviewPage().includes('周初贴纸')&&!context.reviewPage().includes('周末贴纸'),'回顾按分区筛选');
+  state.records.splice(-3);
+  const today=new Date(),day=new Date(today.getFullYear(),today.getMonth(),today.getDate(),12).getTime();
+  state.records.push({id:'food1',categoryId:'food',name:'咖啡',occurredAt:day,favorite:true,tags:[]},{id:'life1',categoryId:'life',name:'花',occurredAt:day,favorite:false,tags:[]});
+  context.ZONE='all';context.VIEW=today;context.PICKED=today;context.FAV_WEEK=today;context.FAV_PICKED=today;
+  ok(context.recordsFor('all').length===2&&context.recordsFor('food').length===1,'全区汇总不同分区贴纸');
+  ok(context.calendarPage().includes('全区')&&context.calendarPage().includes('咖啡'),'首页全区日历');
+  const allStats=context.statsPage();
+  ok(allStats.includes('<strong>年</strong>')&&allStats.includes('<strong>月</strong>')&&allStats.includes('<strong>周</strong>'),'年月周卡片短标题');
+  ok((allStats.match(/class="year-month"/g)||[]).length===12,'年热力图纵向显示十二个月');
+  ok(allStats.includes('data-count="2"')&&allStats.includes('日 · 2 张'),'全区月热力图显示每日两张');
+  ok((allStats.match(/class="year-dot"/g)||[]).length===(new Date(today.getFullYear(),1,29).getMonth()===1?366:365),'全年日期格完整');
+  context.VIEW=new Date(2024,1,1);context.PICKED=new Date(2024,1,1);
+  const leapStats=context.statsPage();
+  ok((leapStats.match(/class="year-dot"/g)||[]).length===366&&(leapStats.match(/class="month-dot(?: on)?"/g)||[]).length===29,'闰年二月与全年格数');
+  context.VIEW=today;context.PICKED=today;
+  context.ZONE='food';
+  ok(context.statsPage().includes('data-count="1"')&&!context.statsPage().includes('data-count="2"'),'分区热力图只统计本区');
+  context.ZONE='all';
+  ok(context.favoritesPage().includes('<h1>收藏</h1>')&&context.favoritesPage().includes('weekly')&&context.favoritesPage().includes('咖啡'),'收藏周历与极简标题');
+  state.categories[0].private=true;
+  context.UNLOCKED=new Set();
+  ok(context.recordsFor('all').length===1&&!context.calendarPage().includes('咖啡')&&!context.favoritesPage().includes('咖啡'),'锁定分区从全区和收藏隐藏');
+  context.REVIEW_SAT=context.latestReviewSaturday(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7));
+  ok(!context.reviewPage().includes('咖啡'),'回顾不显示锁定分区贴纸');
+  context.UNLOCKED.add(state.categories[0].id);
+  ok(context.recordsFor('all').length===2&&context.favoritesPage().includes('咖啡'),'解锁后恢复显示');
+  const backup={categories:state.categories.map(c=>({...c})),records:[]};
+  ok(!context.validBackup(backup),'无密码摘要的隐私分区备份被拒绝');
+  ok(/\.favorite-day \.sticker-card\.reveal,\.favorite-grid \.sticker-card\.reveal\{animation:sticker-bloom/.test(html)&&/function revealFavorites/.test(js),'收藏页日期与全部贴纸可见时涌现');
+  state.records=[];
+  ok(context.categoriesPage().includes('<h1>设置</h1>')&&context.categoriesPage().includes('<h2 class="settings-section">分区</h2>')&&context.categoriesPage().includes('新建分区'),'设置主标题、分区副标题与创建入口');
+  ok(context.categoriesPage().includes('profile-card')&&context.categoriesPage().includes('数据'),'设置页包含个人信息与数据入口');
+  ok(context.categoriesPage().includes('内测人员')&&!context.categoriesPage().includes('管理用户')&&!context.categoriesPage().includes('账号</h2>')&&!/function usersPage\(/.test(js),'内测设置页不显示管理员与管理用户框');
+  ok(/class="login-page"/.test(js)&&/id="inviteCode"/.test(js)&&/login-shell/.test(html),'统一字体的独立邀请码登录页');
+  ok(context.INVITE_CONFIG.userHashes.length===1&&new Set(context.INVITE_CONFIG.userHashes).size===1&&/function loginInvite/.test(js),'公开版仅含独立演示邀请码');
+  ok(context.esc('<script>')==='&lt;script&gt;','文本转义');
+  store.sticker_calendar_v1=JSON.stringify({categories:[{id:'food',name:'美食区',icon:'🍰'},{id:'life',name:'日常区',icon:'🌿'},{id:'study',name:'学习区',icon:'📚'}],records:[]});
+  context.load();
+  ok(context.S.categories.map(x=>x.name).join('|')==='美食|日常|学习','已有数据的默认分区名迁移');
+  delete store.sticker_calendar_v1;
+  store.rec_v2=JSON.stringify({types:[{id:'t1',name:'饮食',icon:'🍰',subtypes:[{id:'s1',name:'咖啡'}]}],records:[{id:'r1',typeId:'t1',subtypeId:'s1',occurredAt:Date.now(),photo:'data:image/png;base64,AA',favorite:true}]});
+  context.load();
+  ok(context.S.records.length===1&&context.S.records[0].name==='咖啡','旧记录可迁移');
+  ok(context.S.records[0].favorite===true,'旧收藏状态可迁移');
+  ok(!!store.sticker_calendar_v1,'新数据版本已保存');
+  context.S=context.defaultState();
+  context.DRAFT={id:null,categoryId:'food',name:'拿铁',description:'',note:'',tags:[],occurredAt:Date.now(),sticker:'',favorite:false,suggestions:[]};
+  let detail='';context.openSheet=x=>detail=x;
+  context.showDetail();
+  ok(detail.includes('描边粗细')&&detail.includes('自定义描边与发光颜色')&&detail.includes('描边虚实')&&detail.includes('实线')&&detail.includes('虚线')&&detail.includes('波点虚线')&&detail.includes('✨ 发光')&&!detail.includes('语音输入'),'详情页发光描边共用预设与自定义颜色且移除语音入口');
+  ok(!detail.includes('id="tagIcon"')&&detail.includes('id="tagText"')&&detail.includes("event.key==='Enter'"),'纯文字标签和回车创建入口');
+  const tagField={value:'自定义标签',focus:()=>{}},tagList={innerHTML:''};
+  context.document={getElementById:k=>({tagText:tagField,tagList})[k]};
+  context.addTag({preventDefault:()=>{}});
+  ok(context.DRAFT.tags.length===1&&context.DRAFT.tags[0]==='自定义标签'&&tagField.value==='','自定义标签保存为文字');
+  context.removeTag(0);
+  ok(context.DRAFT.tags.length===0,'标签可删除');
+  ok(context.tagText({icon:'✨',text:'旧标签'})==='旧标签','旧版图标标签保留文字');
+  ok(context.borderWidthOf({borderWidth:12})===12&&context.borderModeOf({borderMode:'dashed'})==='dashed'&&context.borderModeOf({borderMode:'dotted'})==='dotted'&&context.borderModeOf({borderMode:'glow'})==='glow'&&context.borderColorOf({borderColor:'#68b5e9'})==='#68b5e9','描边粗细、虚线、波点、发光和颜色参数生效');
+  ok(context.borderModeOf({borderMode:'gold'})==='glow'&&context.borderColorOf({borderMode:'gold',borderColor:'#ffffff'})==='#dfac45','旧版金边保留金色发光效果');
+  ok(context.mixHexColor('#ff0000','#ffffff',.5)==='#ff8080','发光渐变按所选颜色计算');
+  context.document={getElementById:()=>null,querySelectorAll:()=>[],querySelector:()=>null};
+  context.DRAFT={borderMode:'solid',borderColor:'#68b5e9',sticker:''};context.setBorderMode('glow');
+  ok(context.DRAFT.borderMode==='glow'&&context.DRAFT.borderColor==='#68b5e9','已有颜色切换发光后保持不变');
+  context.DRAFT={borderMode:'solid',borderColor:'#ffffff',sticker:''};context.setBorderMode('glow');
+  ok(context.DRAFT.borderColor==='#dfac45','白色描边首次切换发光时使用金色默认色');
+  context.setBorderColor('#f06b91');ok(context.DRAFT.borderColor==='#f06b91','发光颜色可切换为其他预设或自定义值');
+  ok(context.borderWidthOf({outlineStyle:'bold'})===14&&context.borderWidthOf({outlineStyle:'none'})===0,'旧版描边样式可迁移');
+}
+ok(/id="camera"[^>]*capture="environment"/.test(html),'手机拍照入口');
+ok(/async function removeBackground/.test(js)&&/SEG\.run/.test(js),'自动抠图流程');
+ok(/async function classifySticker/.test(js)&&/CLASSIFIER\.run/.test(js),'离线识物与中文描述流程');
+ok(/indexedDB\.open/.test(js),'照片使用本机图片库');
+ok(/function openLasso/.test(js)&&/function applyLasso/.test(js)&&/originalPhoto:data/.test(js),'原图手绘轮廓修正');
+ok(/function lassoPointerDown/.test(js)&&/function lassoPointerMove/.test(js)&&/LASSO_POINTERS\.size>=2/.test(js)&&/function zoomLasso/.test(js),'双指缩放平移和缩放按钮');
+ok(/LASSO_SNAPPED=true/.test(js)&&/function showLassoPreview/.test(js)&&/function commitLasso/.test(js),'起点磁吸与裁切确认');
+ok(/async function refineLassoSticker/.test(js)&&/await SEG\.run/.test(js)&&/Math\.round\(a\*alpha\[i\*4\]\/255\)/.test(js),'离线模型校正与手绘区域遮罩相交');
+ok(/applyLasso\(true\)[\s\S]*?选区后自动识别/.test(js)&&/refineLassoSticker\(LASSO_SOURCE_CROP,LASSO_CANDIDATE\)/.test(js)&&/手绘裁切结果/.test(js)&&/自动识别结果/.test(js),'画圈页直达二次识别并对照两种结果');
+ok(/function paintGlowBorder/.test(js)&&/shadowBlur/.test(js)&&/createLinearGradient/.test(js)&&/paintGlowBorder\(g,im,pad,width,color,c\)/.test(js),'所选颜色控制渐变与光晕并进入贴纸导出流程');
+ok(!/voiceButton|function startVoiceInput|function receiveVoice/.test(js),'移除不可用的语音输入');
+if(context.lassoZoomAt){
+  const canvas={width:200,height:200,getBoundingClientRect:()=>({left:0,top:0,width:200,height:200})};
+  context.document={getElementById:id=>id==='lassoCanvas'?canvas:null};context.drawLasso=()=>{};
+  context.LASSO_VIEW={scale:1,x:0,y:0};context.lassoZoomAt(2,{x:100,y:100});
+  ok(context.LASSO_VIEW.scale===2&&context.LASSO_VIEW.x===-100&&context.LASSO_VIEW.y===-100,'缩放保持中心图片坐标');
+  const point=context.lassoImagePoint({x:100,y:100});ok(point.x===100&&point.y===100,'缩放后手绘坐标仍指向原图');
+  context.LASSO_POINTS=Array.from({length:16},(_,i)=>({x:30+i*5,y:30+i*3}));context.LASSO_SNAPPED=false;context.LASSO_DRAWING=true;context.navigator={vibrate:()=>{}};
+  context.lassoPoint({clientX:-38,clientY:-38});
+  ok(context.LASSO_SNAPPED&&context.LASSO_POINTS.at(-1).x===30&&context.LASSO_POINTS.at(-1).y===30,'接近起点自动吸附并闭合');
+}
+ok(/function exportSticker/.test(js)&&/AndroidApp\.saveSticker/.test(js),'详情页导出透明贴纸');
+ok(/async function makeStyledSticker/.test(js)&&/traceStickerContours/.test(js)&&/setLineDash/.test(js)&&/styledSticker/.test(js),'轮廓虚线与波点描边生成并保存显示图');
+if(context.traceStickerContours){const alpha=new Uint8Array(25);for(let y=1;y<=3;y++)for(let x=1;x<=3;x++)alpha[y*5+x]=255;const loops=context.traceStickerContours(alpha,5,5);ok(loops.length===1&&loops[0].length===12,'透明主体轮廓追踪形成闭合路径')}
+ok(/function lockPrivateZones/.test(js)&&/pinDigest/.test(js),'密码锁和离开自动上锁');
+const nativePath=path.join(root,'..','android','app','src','main','java','com','tietie','calendar','MainActivity.java');
+if(fs.existsSync(nativePath)){
+  const native=fs.readFileSync(nativePath,'utf8');
+  ok(!native.includes('startVoiceInput')&&!native.includes('SpeechRecognizer'),'安卓侧移除语音桥接');
+}else console.log('跳过 Android 源码检查（独立交接包不含源码）');
+ok(/@keyframes sticker-drop/.test(html)&&/@keyframes sticker-bloom/.test(html)&&/prefers-reduced-motion/.test(html),'月历掉落与收藏涌现动画');
+ok(/--ui:var\(--display\)/.test(html)&&/font-family:var\(--ui\)/.test(html)&&/font-family:var\(--display\)/.test(html),'标题与正文统一使用汇文明朝体');
+const fontPath=path.join(root,'参考字体','Huiwen-mincho.ttf');
+ok(fs.existsSync(fontPath)&&fs.readFileSync(fontPath).subarray(0,4).toString()==='\u0000\u0001\u0000\u0000','离线字体 Huiwen-mincho.ttf');
+ok(fs.existsSync(path.join(root,'参考字体','汇文明朝体-授权说明.txt')),'字体授权说明随包提供');
+ok(!/https?:\/\//.test(html),'运行页面不引用网络地址');
+const assets=[
+  ['ort.wasm.min.js',null],
+  ['wasm-code.js',null],
+  ['wasm-binary.js','71aef04959c5c1b6de461b6538e2058e306610034a85aad2742d0c7fd4533fe4'],
+  ['model-u2.js','309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8'],
+  ['model-mobilenet.js','1583455b3c8605bff2eafe9772043d2966b8ab51402204441d36eb5b60d58f94'],
+  ['labels-zh.js',null]
+];
+for(const [name,hash] of assets){
+  const p=path.join(root,'离线模型',name),exists=fs.existsSync(p);
+  ok(exists,'离线文件 '+name);
+  if(exists&&hash){const m=fs.readFileSync(p,'utf8').match(/="([A-Za-z0-9+/=]+)"/);ok(!!m&&crypto.createHash('sha256').update(Buffer.from(m[1],'base64')).digest('hex')===hash,'模型校验 '+name)}
+}
+context.crypto=crypto.webcrypto;
+context.TextEncoder=TextEncoder;
+const salt='00112233445566778899aabbccddeeff';
+Promise.all([context.pinDigest('123456',salt),context.pinDigest('123456',salt),context.pinDigest('654321',salt)]).then(async ([a,b,c])=>{
+  ok(a===b&&a!==c&&/^[0-9a-f]{64}$/.test(a),'密码摘要稳定且不同密码不相同');
+  context.S=context.defaultState();
+  context.DRAFT={id:null,categoryId:'food',name:'新贴纸',description:'',note:'',tags:[{icon:'✨',text:'旧标签'},'新标签'],borderWidth:12,borderMode:'dashed',borderColor:'#f5a9b7',occurredAt:Date.now(),sticker:'data:image/png;base64,AA',originalPhoto:'',favorite:false};
+  context.makeStyledSticker=async()=> 'data:image/png;base64,BB';
+  context.closeSheet=()=>{};context.go=()=>{};context.toast=()=>{};
+  await context.saveDetail();
+  const saved=context.S.records[0];
+  ok(saved&&saved.borderWidth===12&&saved.borderMode==='dashed'&&saved.borderColor==='#f5a9b7'&&saved.styledSticker==='data:image/png;base64,BB','描边设置与显示图一起保存');
+  ok(saved&&saved.tags.join('|')==='旧标签|新标签','新旧标签保存为纯文字');
+  const widgetDay=new Date(2026,8,30,12).getTime();
+  context.S=context.defaultState();context.S.categories[1].private=true;context.UNLOCKED.add('life');
+  context.S.records=[0,1,2].map(i=>({id:'widget-'+i,categoryId:'food',name:'公开贴纸',occurredAt:widgetDay+i}));
+  context.S.records.push({id:'widget-secret',categoryId:'life',name:'隐私贴纸',occurredAt:widgetDay});
+  const widgetDays=context.widgetDays();
+  ok(widgetDays['2026-09-30'].count===3&&widgetDays['2026-09-30'].records.length===2,'桌面快照每日总数完整，缩略图最多两张');
+  ok(!JSON.stringify(widgetDays).includes('widget-secret'),'桌面组件排除已解锁的隐私分区');
+  let widgetSnapshot=null;
+  context.window.AndroidApp={syncWidgets:json=>{widgetSnapshot=JSON.parse(json);return true}};
+  context.AndroidApp=context.window.AndroidApp;
+  context.widgetThumbnail=async r=>'thumbnail-'+r.id;
+  ok(await context.syncWidgetSnapshot()&&widgetSnapshot['2026-09-30'].count===3&&widgetSnapshot['2026-09-30'].images.length===2,'桌面缩略图与统计同步至安卓');
+  widgetSnapshot=null;context.widgetThumbnail=async()=>{context.WIDGET_SYNC_VERSION++;return 'old-image'};
+  ok(!await context.syncWidgetSnapshot()&&widgetSnapshot===null,'更新过程中数据改变时丢弃旧快照');
+  const widgetButtons={daily:{disabled:false},monthly:{disabled:false}},widgetStatus={textContent:'',setAttribute:()=>{}};
+  context.document={getElementById:id=>id==='widgetAddStatus'?widgetStatus:id==='widgetAdd-daily'?widgetButtons.daily:id==='widgetAdd-monthly'?widgetButtons.monthly:null};
+  let requested='',scheduled=false;
+  context.AndroidApp.addWidget=type=>requested=type;
+  context.scheduleWidgetSync=()=>{scheduled=true};
+  context.syncWidgetSnapshot=()=>new Promise(()=>{});
+  context.requestWidget('daily');
+  ok(requested==='daily'&&scheduled&&widgetButtons.daily.disabled&&widgetStatus.textContent.includes('正在请求'),'缩略图同步未完成也立即请求今日组件并显示状态');
+  context.widgetAddStatus('manual','请从桌面添加');
+  ok(!widgetButtons.daily.disabled&&!widgetButtons.monthly.disabled&&widgetStatus.textContent==='请从桌面添加','桌面未添加时恢复按钮并显示手动路径');
+  context.requestWidget('monthly');
+  ok(requested==='monthly','月历组件也立即向安卓发出请求');
+  context.widgetAddStatus('added','组件已添加到桌面。');
+  ok(!widgetButtons.monthly.disabled&&widgetStatus.textContent==='组件已添加到桌面。','收到添加确认后显示成功');
+  const authStore={};
+  const auth=vm.createContext({window:{AndroidApp:{}},document:{},localStorage:{getItem:k=>Object.prototype.hasOwnProperty.call(authStore,k)?authStore[k]:null,setItem:(k,v)=>authStore[k]=String(v),removeItem:k=>delete authStore[k]},Date,Math,JSON,Array,Object,String,Number,Boolean,RegExp,Promise,setTimeout,clearTimeout});
+  vm.runInContext(js.replace(/\bboot\(\);\s*$/,''),auth);
+  const userHash=auth.INVITE_CONFIG.userHashes[0],adminHash=auth.INVITE_CONFIG.adminHash;
+  ok(auth.inviteSession(userHash).role==='user'&&auth.inviteSession(adminHash).role==='admin'&&auth.inviteSession('0'.repeat(64))===null,'仅已发放邀请码可建立本机登录状态');
+  let entered=[];auth.activateAccount=async (role,email,id)=>{entered.push([role,email,id])};
+  auth.rememberInviteSession(auth.inviteSession(userHash));
+  ok(await auth.restoreInviteSession()&&entered.length===1&&entered[0][2]===userHash.slice(0,24),'验证成功后重启自动进入原用户数据');
+  const savedSession=JSON.parse(authStore[auth.INVITE_SESSION_KEY]);
+  ok(Object.keys(savedSession).sort().join('|')==='hash|role|v'&&savedSession.hash===userHash,'本机只保存邀请码摘要和身份');
+  auth.ROLE='user';auth.AUTHENTICATED=true;auth.showAuth=()=>{};auth.AndroidApp=auth.window.AndroidApp;
+  auth.logoutAccount();
+  ok(!await auth.restoreInviteSession()&&entered.length===1&&auth.AUTHENTICATED===false,'退出登录后不再自动进入');
+  delete authStore[auth.INVITE_MIGRATION_KEY];
+  authStore[auth.BASE_KEY+'_user_'+userHash.slice(0,24)]='{}';
+  ok(await auth.restoreInviteSession()&&entered.length===2&&!!authStore[auth.INVITE_SESSION_KEY],'旧版已验证且仅有一个账号时自动迁移');
+  auth.forgetInviteSession();
+  delete authStore[auth.INVITE_MIGRATION_KEY];
+  authStore[auth.BASE_KEY+'_admin']='{}';
+  ok(!await auth.restoreInviteSession()&&entered.length===2,'旧版多账号设备要求选择邀请码');
+  authStore[auth.INVITE_SESSION_KEY]=JSON.stringify({v:1,hash:'0'.repeat(64),role:'user'});
+  ok(!await auth.restoreInviteSession()&&!authStore[auth.INVITE_SESSION_KEY],'无效的本机登录状态被清除');
+  delete context.window.AndroidApp;
+  console.log('\n通过 '+passed+'　失败 '+failed);
+  process.exitCode=failed?1:0;
+}).catch(e=>{console.error(e);process.exitCode=1});
